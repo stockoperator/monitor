@@ -4,6 +4,7 @@ from enum import Enum
 from dataclasses import dataclass, field
 import aiohttp
 import asyncio
+import hmac
 from connector.utils import traceback_error_str
 
 MINUTE = 60  # Secs
@@ -71,32 +72,53 @@ class AbstractConnector(ABC):
         """Market type: SPOT, PERPETUAL, etc."""
         ...
 
+    @property
     @abstractmethod
+    def base_url(self) -> str: ...
+
+    @property
+    @abstractmethod
+    def exchange_info_url(self) -> str: ...
+
+    @property
+    @abstractmethod
+    def exchange_symbol_field(self) -> str: ...
+
     def _sign(self, message: str) -> str:
-        """Method for signing the request."""
-        ...
+        return hmac.new(key=self.secret_key.encode("utf-8"), msg=message.encode("utf-8"), digestmod="sha256").hexdigest()
 
-    @abstractmethod
     async def _request(self, method: HTTPMethod, url: str, params: dict[str, Any] | None = None, is_auth_required: bool = False) -> dict[str, Any]:
-        """Sending requests to the exchange's API."""
-        ...
+        params = params if params else {}
+        headers: dict[str, Any] = {}
+
+        if is_auth_required:
+            pass
+
+        async with self.session.request(method=method.value, url=url, params=params, headers=headers) as response:
+            return await response.json()
+
+    async def _request_exchange_info(self) -> Any:
+        return await self._request(HTTPMethod.GET, url=self.base_url + self.exchange_info_url)
 
     @abstractmethod
-    async def _request_exchange_info(self) -> dict[str, Any]: ...
-
-    @abstractmethod
-    def _get_instruments_info_from_exchange_info(self, exchange_info: dict[str, Any]) -> list[dict[str, Any]]: ...
+    def _get_instruments_info_from_exchange_info(self, exchange_info: Any) -> list[dict[str, Any]]: ...
 
     @abstractmethod
     def _unify_symbol(self, instrument_info: dict[str, Any]) -> str: ...
 
     @abstractmethod
-    def _make_instrument_from_instrument_info(self, instrument_info: dict[str, Any]) -> Instrument: ...
-
-    @abstractmethod
     def _is_instrument_info_valid(self, inst_info: dict[str, Any]) -> bool: ...
 
-    def _make_instruments_from_exchange_info(self, exchange_info: dict[str, Any]) -> list[Instrument]:
+    def _make_instrument_from_instrument_info(self, instrument_info: dict[str, Any]) -> Instrument:
+        instrument = Instrument(
+            exchange=self.name,
+            market_type=self.market_type,
+            exchange_symbol=instrument_info[self.exchange_symbol_field],
+            unified_symbol=self._unify_symbol(instrument_info),
+        )
+        return instrument
+
+    def _make_instruments_from_exchange_info(self, exchange_info: Any) -> list[Instrument]:
         instruments: list[Instrument] = []
         for instrument_info in self._get_instruments_info_from_exchange_info(exchange_info):
             if self._is_instrument_info_valid(instrument_info):
