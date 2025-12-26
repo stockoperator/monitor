@@ -1,18 +1,17 @@
-from abc import ABC, abstractmethod
-from connector.connector import AbstractConnector, Instrument, ExchangeName, MarketType, HTTPMethod
+from connector.connector import AbstractConnector, ExchangeName, HTTPMethod
 from typing import Any
 import hmac
 import time
 
 
-class BinanceBase(AbstractConnector, ABC):
+class BinanceBase(AbstractConnector):
     @property
     def name(self) -> ExchangeName:
         return ExchangeName.BINANCE
 
     @property
-    @abstractmethod
-    def market_type(self) -> MarketType: ...
+    def exchange_symbol_field(self) -> str:
+        return "symbol"
 
     def _sign(self, message: str) -> str:
         return hmac.new(key=self.secret_key.encode("utf-8"), msg=message.encode("utf-8"), digestmod="sha256").hexdigest()
@@ -35,14 +34,5 @@ class BinanceBase(AbstractConnector, ABC):
     def _unify_symbol(self, instrument_info: dict[str, Any]) -> str:
         return f'{instrument_info["baseAsset"]}{instrument_info["quoteAsset"]}'.upper()
 
-    @abstractmethod
-    async def _request_exchange_info(self) -> dict[str, Any]: ...
-
     def _get_instruments_info_from_exchange_info(self, exchange_info: dict[str, Any]) -> list[dict[str, Any]]:
         return exchange_info["symbols"]
-
-    @abstractmethod
-    def _is_instrument_info_valid(self, inst_info: dict[str, Any]) -> bool: ...
-
-    @abstractmethod
-    def _make_instrument_from_instrument_info(self, instrument_info: dict[str, Any]) -> Instrument: ...
