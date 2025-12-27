@@ -12,5 +12,9 @@ class BybitSpot(BybitBase):
     def exchange_info_url(self) -> str:
         return "market/instruments-info?category=spot"
 
-    def _is_instrument_info_valid(self, inst_info: dict[str, Any]) -> bool:
-        return inst_info["status"] == "Trading" and inst_info["quoteCoin"] == "USDT"
+    @property
+    def instrument_validation_dict(self) -> dict[str, Any]:
+        return {
+            "status": "Trading",
+            "quoteCoin": "USDT",
+        }

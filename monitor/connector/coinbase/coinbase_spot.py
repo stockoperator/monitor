@@ -8,5 +8,10 @@ class CoinbaseSpot(CoinbaseBase):
     def market_type(self) -> MarketType:
         return MarketType.SPOT
 
-    def _is_instrument_info_valid(self, inst_info: dict[str, Any]) -> bool:
-        return inst_info["type"] == "SPOT" and inst_info["trading_state"] == "TRADING" and inst_info["quote_asset_name"] == "USDC"
+    @property
+    def instrument_validation_dict(self) -> dict[str, Any]:
+        return {
+            "type": "SPOT",
+            "trading_state": "TRADING",
+            "quote_asset_name": "USDC",
+        }

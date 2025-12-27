@@ -12,5 +12,9 @@ class BitgetPerp(BitgetBase):
     def exchange_info_url(self) -> str:
         return "mix/market/contracts?productType=USDT-FUTURES"
 
-    def _is_instrument_info_valid(self, inst_info: dict[str, Any]) -> bool:
-        return inst_info["symbolType"] == "perpetual" and inst_info["symbolStatus"] == "normal"
+    @property
+    def instrument_validation_dict(self) -> dict[str, Any]:
+        return {
+            "symbolType": "perpetual",
+            "symbolStatus": "normal",
+        }

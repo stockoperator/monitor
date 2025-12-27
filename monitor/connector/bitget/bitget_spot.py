@@ -12,5 +12,9 @@ class BitgetSpot(BitgetBase):
     def exchange_info_url(self) -> str:
         return "spot/public/symbols"
 
-    def _is_instrument_info_valid(self, inst_info: dict[str, Any]) -> bool:
-        return inst_info["status"] == "online" and inst_info["quoteCoin"] == "USDT"
+    @property
+    def instrument_validation_dict(self) -> dict[str, Any]:
+        return {
+            "status": "online",
+            "quoteCoin": "USDT",
+        }

@@ -26,5 +26,10 @@ class GateioSpot(GateioBase):
     def _unify_symbol(self, instrument_info: dict[str, Any]) -> str:
         return f'{instrument_info["base"]}{instrument_info["quote"]}'.upper()
 
-    def _is_instrument_info_valid(self, inst_info: dict[str, Any]) -> bool:
-        return inst_info["quote"] == "USDT" and inst_info["trade_status"] == "tradable" and inst_info["type"] == "normal"
+    @property
+    def instrument_validation_dict(self) -> dict[str, Any]:
+        return {
+            "quote": "USDT",
+            "trade_status": "tradable",
+            "type": "normal",
+        }

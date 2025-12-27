@@ -15,5 +15,9 @@ class OkxSpot(OkxBase):
     def _unify_symbol(self, instrument_info: dict[str, Any]) -> str:
         return f'{instrument_info["baseCcy"]}{instrument_info["quoteCcy"]}'.upper()
 
-    def _is_instrument_info_valid(self, inst_info: dict[str, Any]) -> bool:
-        return inst_info["state"] == "live" and inst_info["quoteCcy"] == "USDT"
+    @property
+    def instrument_validation_dict(self) -> dict[str, Any]:
+        return {
+            "state": "live",
+            "quoteCcy": "USDT",
+        }

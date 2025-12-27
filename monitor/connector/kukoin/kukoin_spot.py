@@ -20,5 +20,9 @@ class KukoinSpot(KukoinBase):
     def exchange_info_url(self) -> str:
         return "v2/symbols"
 
-    def _is_instrument_info_valid(self, inst_info: dict[str, Any]) -> bool:
-        return inst_info["enableTrading"] is True and inst_info["quoteCurrency"] == "USDT"
+    @property
+    def instrument_validation_dict(self) -> dict[str, Any]:
+        return {
+            "enableTrading": True,
+            "quoteCurrency": "USDT",
+        }
