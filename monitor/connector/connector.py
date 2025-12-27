@@ -106,8 +106,27 @@ class AbstractConnector(ABC):
     @abstractmethod
     def _unify_symbol(self, instrument_info: dict[str, Any]) -> str: ...
 
+    @property
     @abstractmethod
-    def _is_instrument_info_valid(self, inst_info: dict[str, Any]) -> bool: ...
+    def instrument_validation_dict(self) -> dict[str, Any]: ...
+
+    def _is_instrument_info_valid(self, instrument_info: dict[str, Any]) -> bool:
+        """Validate dictionary. Filter dictionary: key -> value"""
+
+        for key, value in self.instrument_validation_dict.items():
+            if isinstance(value, bool):
+                if instrument_info[key] is not value:
+                    return False
+            elif isinstance(value, (list, set, tuple)):
+                if instrument_info[key] not in value:
+                    return False
+            elif isinstance(value, (str, int, float)):
+                if instrument_info[key] != value:
+                    return False
+            else:
+                raise NotImplementedError(f"Type {type(value).__name__} is not supported.")
+
+        return True
 
     def _make_instrument_from_instrument_info(self, instrument_info: dict[str, Any]) -> Instrument:
         instrument = Instrument(

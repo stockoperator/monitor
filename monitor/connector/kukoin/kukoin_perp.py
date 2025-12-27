@@ -20,5 +20,10 @@ class KukoinPerp(KukoinBase):
     def exchange_info_url(self) -> str:
         return "v1/contracts/active"
 
-    def _is_instrument_info_valid(self, inst_info: dict[str, Any]) -> bool:
-        return inst_info["isInverse"] is False and inst_info["status"] == "Open" and inst_info["quoteCurrency"] == "USDT"
+    @property
+    def instrument_validation_dict(self) -> dict[str, Any]:
+        return {
+            "isInverse": False,
+            "status": "Open",
+            "quoteCurrency": "USDT",
+        }

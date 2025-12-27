@@ -15,5 +15,10 @@ class OkxPerp(OkxBase):
     def _unify_symbol(self, instrument_info: dict[str, Any]) -> str:
         return f'{instrument_info["ctValCcy"]}{instrument_info["settleCcy"]}'.upper()
 
-    def _is_instrument_info_valid(self, inst_info: dict[str, Any]) -> bool:
-        return inst_info["ctType"] == "linear" and inst_info["state"] == "live" and inst_info["settleCcy"] == "USDT"
+    @property
+    def instrument_validation_dict(self) -> dict[str, Any]:
+        return {
+            "ctType": "linear",
+            "state": "live",
+            "settleCcy": "USDT",
+        }

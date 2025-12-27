@@ -16,5 +16,10 @@ class BinancePerp(BinanceBase):
     def exchange_info_url(self) -> str:
         return "v1/exchangeInfo"
 
-    def _is_instrument_info_valid(self, inst_info: dict[str, Any]) -> bool:
-        return inst_info["status"] == "TRADING" and inst_info["contractType"] == "PERPETUAL" and inst_info["quoteAsset"] == "USDT"
+    @property
+    def instrument_validation_dict(self) -> dict[str, Any]:
+        return {
+            "status": "TRADING",
+            "contractType": "PERPETUAL",
+            "quoteAsset": "USDT",
+        }

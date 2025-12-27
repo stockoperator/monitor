@@ -4,8 +4,9 @@ from typing import Any
 
 class OkxBase(AbstractConnector):
     """
-    Docs: https://www.okx.com/docs-v5/en
-    Docs: https://www.okx.com/docs-v5/en/#public-data-rest-api-get-instruments
+    Docs:
+    - main: https://www.okx.com/docs-v5/en
+    - instruments: https://www.okx.com/docs-v5/en/#public-data-rest-api-get-instruments
     """
 
     @property

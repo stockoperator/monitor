@@ -26,5 +26,9 @@ class GateioPerp(GateioBase):
     def _unify_symbol(self, instrument_info: dict[str, Any]) -> str:
         return f'{instrument_info["name"]}'.replace("_", "").upper()
 
-    def _is_instrument_info_valid(self, inst_info: dict[str, Any]) -> bool:
-        return inst_info["status"] == "trading" and inst_info["type"] == "direct"
+    @property
+    def instrument_validation_dict(self) -> dict[str, Any]:
+        return {
+            "status": "trading",
+            "type": "direct",
+        }
