@@ -5,7 +5,9 @@ from dataclasses import dataclass, field
 import aiohttp
 import asyncio
 import hmac
+import re
 from connector.utils import traceback_error_str
+
 
 MINUTE = 60  # Secs
 INSTRUMENT_INTERVAL = 30 * MINUTE
@@ -60,6 +62,8 @@ class AbstractConnector(ABC):
     passphrase: str = ""
     instruments: dict[str, Instrument] = field(init=False, default_factory=lambda: {})
 
+    __re_unify_pattern: re.Pattern[str] = field(init=False, default_factory=lambda: re.compile(r"[^A-Za-z0-9]"))
+
     @property
     @abstractmethod
     def name(self) -> ExchangeName:
@@ -103,8 +107,15 @@ class AbstractConnector(ABC):
     @abstractmethod
     def _get_instruments_info_from_exchange_info(self, exchange_info: Any) -> list[dict[str, Any]]: ...
 
+    @property
     @abstractmethod
-    def _unify_symbol(self, instrument_info: dict[str, Any]) -> str: ...
+    def unified_symbol_fields(self) -> tuple[str, ...]: ...
+
+    def _unify_symbol(self, instrument_info: dict[str, Any]) -> str:
+        unified_symbol: str = ""
+        for key in self.unified_symbol_fields:
+            unified_symbol += instrument_info[key]
+        return self.__re_unify_pattern.sub("", unified_symbol).upper()
 
     @property
     @abstractmethod

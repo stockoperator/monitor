@@ -31,8 +31,9 @@ class BinanceBase(AbstractConnector):
         async with self.session.request(method=method.value, url=url, params=params, headers=headers) as response:
             return await response.json()
 
-    def _unify_symbol(self, instrument_info: dict[str, Any]) -> str:
-        return f'{instrument_info["baseAsset"]}{instrument_info["quoteAsset"]}'.upper()
+    @property
+    def unified_symbol_fields(self) -> tuple[str, ...]:
+        return ("baseAsset", "quoteAsset")
 
     def _get_instruments_info_from_exchange_info(self, exchange_info: dict[str, Any]) -> list[dict[str, Any]]:
         return exchange_info["symbols"]

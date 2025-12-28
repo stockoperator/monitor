@@ -12,8 +12,9 @@ class OkxSpot(OkxBase):
     def exchange_info_url(self) -> str:
         return "public/instruments?instType=SPOT"
 
-    def _unify_symbol(self, instrument_info: dict[str, Any]) -> str:
-        return f'{instrument_info["baseCcy"]}{instrument_info["quoteCcy"]}'.upper()
+    @property
+    def unified_symbol_fields(self) -> tuple[str, ...]:
+        return ("baseCcy", "quoteCcy")
 
     @property
     def instrument_validation_dict(self) -> dict[str, Any]:

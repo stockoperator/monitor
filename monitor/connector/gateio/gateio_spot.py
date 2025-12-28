@@ -23,8 +23,9 @@ class GateioSpot(GateioBase):
     def _get_instruments_info_from_exchange_info(self, exchange_info: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return exchange_info
 
-    def _unify_symbol(self, instrument_info: dict[str, Any]) -> str:
-        return f'{instrument_info["base"]}{instrument_info["quote"]}'.upper()
+    @property
+    def unified_symbol_fields(self) -> tuple[str, ...]:
+        return ("base", "quote")
 
     @property
     def instrument_validation_dict(self) -> dict[str, Any]:
