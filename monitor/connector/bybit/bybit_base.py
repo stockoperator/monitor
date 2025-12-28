@@ -15,8 +15,9 @@ class BybitBase(AbstractConnector):
     def exchange_symbol_field(self) -> str:
         return "symbol"
 
-    def _unify_symbol(self, instrument_info: dict[str, Any]) -> str:
-        return f'{instrument_info["baseCoin"]}{instrument_info["quoteCoin"]}'.upper()
+    @property
+    def unified_symbol_fields(self) -> tuple[str, ...]:
+        return ("baseCoin", "quoteCoin")
 
     def _get_instruments_info_from_exchange_info(self, exchange_info: dict[str, Any]) -> list[dict[str, Any]]:
         return exchange_info["result"]["list"]

@@ -26,5 +26,6 @@ class CoinbaseBase(AbstractConnector):
     def _get_instruments_info_from_exchange_info(self, exchange_info: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return exchange_info
 
-    def _unify_symbol(self, instrument_info: dict[str, Any]) -> str:
-        return f'{instrument_info["base_asset_name"]}{instrument_info["quote_asset_name"]}'.upper()
+    @property
+    def unified_symbol_fields(self) -> tuple[str, ...]:
+        return ("base_asset_name", "quote_asset_name")

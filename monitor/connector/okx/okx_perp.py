@@ -12,8 +12,9 @@ class OkxPerp(OkxBase):
     def exchange_info_url(self) -> str:
         return "public/instruments?instType=SWAP"
 
-    def _unify_symbol(self, instrument_info: dict[str, Any]) -> str:
-        return f'{instrument_info["ctValCcy"]}{instrument_info["settleCcy"]}'.upper()
+    @property
+    def unified_symbol_fields(self) -> tuple[str, ...]:
+        return ("ctValCcy", "settleCcy")
 
     @property
     def instrument_validation_dict(self) -> dict[str, Any]:
