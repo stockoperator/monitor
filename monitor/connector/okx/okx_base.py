@@ -1,8 +1,8 @@
-from connector.connector import AbstractConnector, ExchangeName
+from monitor.connector.connector_old import BaseConnector, ExchangeName
 from typing import Any
 
 
-class OkxBase(AbstractConnector):
+class OkxBase(BaseConnector):
     """
     Docs:
     - main: https://www.okx.com/docs-v5/en

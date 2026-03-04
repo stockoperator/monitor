@@ -1,4 +1,4 @@
-from connector.connector import MarketType
+from monitor.connector.connector_old import MarketType
 from connector.bitget.bitget_base import BitgetBase
 from typing import Any
 

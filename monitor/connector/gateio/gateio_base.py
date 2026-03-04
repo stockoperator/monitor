@@ -1,7 +1,7 @@
-from connector.connector import AbstractConnector, ExchangeName
+from monitor.connector.connector_old import BaseConnector, ExchangeName
 
 
-class GateioBase(AbstractConnector):
+class GateioBase(BaseConnector):
     """
     Docs: https://www.gate.com/docs/developers/apiv4/en
     """

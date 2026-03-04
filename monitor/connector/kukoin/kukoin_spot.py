@@ -1,4 +1,4 @@
-from connector.connector import MarketType
+from monitor.connector.connector_old import MarketType
 from connector.kukoin.kukoin_base import KukoinBase
 from typing import Any
 

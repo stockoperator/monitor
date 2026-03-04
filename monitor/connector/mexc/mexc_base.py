@@ -1,7 +1,7 @@
-from connector.connector import AbstractConnector, ExchangeName
+from monitor.connector.connector_old import BaseConnector, ExchangeName
 
 
-class MexcBase(AbstractConnector):
+class MexcBase(BaseConnector):
     """
     Docs: https://www.mexc.com/api-docs/spot-v3/introduction
     """

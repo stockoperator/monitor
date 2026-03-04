@@ -1,8 +1,8 @@
-from connector.connector import AbstractConnector, ExchangeName
+from monitor.connector.connector_old import BaseConnector, ExchangeName
 from typing import Any
 
 
-class BybitBase(AbstractConnector):
+class BybitBase(BaseConnector):
     @property
     def name(self) -> ExchangeName:
         return ExchangeName.BYBIT

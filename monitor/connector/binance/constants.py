@@ -1,0 +1,6 @@
+base_spot_url = "https://api.binance.com/api/"
+base_perp_url = "https://fapi.binance.com/fapi/"
+perp_exchange_info_url = "v1/exchangeInfo"
+spot_exchange_info_url = "v3/exchangeInfo"
+ws_perp_url = "wss://fstream.binance.com/ws"
+ws_spot_url = "wss://stream.binance.com:443/ws"

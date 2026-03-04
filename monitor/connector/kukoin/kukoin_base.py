@@ -1,8 +1,8 @@
-from connector.connector import AbstractConnector, ExchangeName
+from monitor.connector.connector_old import BaseConnector, ExchangeName
 from typing import Any
 
 
-class KukoinBase(AbstractConnector):
+class KukoinBase(BaseConnector):
     """
     Docs: https://www.kucoin.com/docs-new
     """

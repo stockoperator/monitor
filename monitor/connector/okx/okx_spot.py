@@ -1,4 +1,4 @@
-from connector.connector import MarketType
+from monitor.connector.connector_old import MarketType
 from connector.okx.okx_base import OkxBase
 from typing import Any
 

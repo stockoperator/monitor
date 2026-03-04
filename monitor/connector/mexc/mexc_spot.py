@@ -1,4 +1,4 @@
-from connector.connector import MarketType
+from monitor.connector.connector_old import MarketType
 from connector.mexc.mexc_base import MexcBase
 from typing import Any
 

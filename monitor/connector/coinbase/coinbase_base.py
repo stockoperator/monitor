@@ -1,8 +1,8 @@
-from connector.connector import AbstractConnector, ExchangeName
+from monitor.connector.connector_old import BaseConnector, ExchangeName
 from typing import Any
 
 
-class CoinbaseBase(AbstractConnector):
+class CoinbaseBase(BaseConnector):
     """
     Docs: https://docs.cdp.coinbase.com/api-reference/international-exchange-api/rest-api/instruments/list-instruments
     """

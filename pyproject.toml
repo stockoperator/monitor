@@ -5,11 +5,18 @@ description = ""
 authors = [
     {name = "inevity",email = "mb.tsuranov@gmail.com"}
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.15"
 dependencies = [
     "aiohttp (>=3.13.2,<4.0.0)",
     "ipykernel (>=7.1.0,<8.0.0)",
-    "orjson (>=3.11.5,<4.0.0)"
+    "orjson (>=3.11.5,<4.0.0)",
+    "matplotlib (>=3.10.8,<4.0.0)",
+    "numpy (>=2.4.2,<3.0.0)",
+    "sortedcontainers (>=2.4.0,<3.0.0)",
+    "uvloop (>=0.22.1,<0.23.0)",
+    "pandas (>=3.0.1,<4.0.0)",
+    "clickhouse-connect (>=0.14.1,<0.15.0)",
+    "py-spy (>=0.4.1,<0.5.0)"
 ]
 
 

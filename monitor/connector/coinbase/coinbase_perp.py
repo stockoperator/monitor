@@ -1,4 +1,4 @@
-from connector.connector import MarketType
+from monitor.connector.base_classes import MarketType
 from connector.coinbase.coinbase_base import CoinbaseBase
 from typing import Any
 
