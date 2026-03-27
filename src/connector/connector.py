@@ -15,6 +15,7 @@ from connector.public_trade_service import BasePublicTradeService
 class BaseConnector(ABC):
     def __init__(
         self,
+        *,
         session: ClientSession,
         api_key: str = "",
         secret_key: str = "",
@@ -27,12 +28,13 @@ class BaseConnector(ABC):
 
         self.logger = logger.getChild(self.__class__.__name__)
 
-        self.http_client = self.http_client_type(session)
+        self.http_client = self.http_client_type(
+            session=session,
+            logger=self.logger.getChild("http"),
+        )
 
         self.instruments = self.instrument_manager_type(
-            self.http_client,
-            name=self.name,
-            market_type=self.market_type,
+            http_client=self.http_client,
             logger=self.logger.getChild("instruments"),
         )
         self.orderbooks = self.orderbook_service_type(
@@ -41,10 +43,10 @@ class BaseConnector(ABC):
             logger=self.logger.getChild("orderbook"),
         )
 
-        self.public_trades = self.public_trade_service_type(
+        self.trade_container = self.public_trade_service_type(
             session=session,
             instruments=self.instruments,
-            logger=self.logger.getChild("public_trades"),
+            logger=self.logger.getChild("trade_container"),
         )
 
     @property
@@ -76,5 +78,5 @@ class BaseConnector(ABC):
 
         async with asyncio.TaskGroup() as tg:
             tg.create_task(self.instruments.update_instruments_loop())
-            tg.create_task(self.orderbooks.run())
-            tg.create_task(self.public_trades.run())
+            tg.create_task(self.trade_container.run())
+            # tg.create_task(self.orderbooks.run())

@@ -1,9 +1,8 @@
-from connector.events import Event
 from asyncio import Queue
 from typing import Any
 
 
-class EventManager:
+class EventQueueManager:
     def __init__(self):
         self._subscribers: set[Queue[Any]] = set()
 
@@ -18,6 +17,6 @@ class EventManager:
         return self
 
     # Вызов всех подписчиков
-    def __call__(self, event: Event):
+    def __call__(self, event: Any):
         for queue in self._subscribers:
             queue.put_nowait(event)

@@ -3,6 +3,8 @@ import traceback
 import os
 from typing import Any
 import re
+import time
+import gc
 
 __re_unify_pattern: re.Pattern[str] = re.compile(r"[^A-Za-z0-9]")
 
@@ -46,3 +48,37 @@ def validate_dict_by_dict(source: dict[str, Any], filter: dict[str, Any]) -> boo
             raise NotImplementedError(f"Type {type(value).__name__} is not supported.")
 
     return True
+
+
+_gc_state: list[tuple[float, tuple[int, int, int]]] = [(0.0, (0, 0, 0))] * 3
+
+
+def gc_callback(phase: str, info: dict[str, int]) -> None:
+    gen = info["generation"]
+
+    if phase == "start":
+        _gc_state[gen] = (time.perf_counter(), gc.get_count())
+    elif phase == "stop":
+
+        started_at, count_before = _gc_state[gen]
+        delay = int((time.perf_counter() - started_at) * 1000)
+
+        collected = info.get("collected", -1)
+        uncollectable = info.get("uncollectable", -1)
+        count_after = gc.get_count()
+
+        if count_before[0] > 100:
+            print(
+                "GC "
+                f"gen: {gen} "
+                f"delay: {delay} ms "
+                f"collected: {collected} "
+                f"uncollectable: {uncollectable} "
+                f"count_before: {count_before} "
+                f"count_after: {count_after}"
+            )
+    else:
+        raise ValueError("Unknown GC phase")
+
+
+# gc.callbacks.append(gc_callback)

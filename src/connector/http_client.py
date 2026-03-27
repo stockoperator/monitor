@@ -23,6 +23,7 @@ def make_session(*, total_timeout: float = 10.0, limit_per_host: int = 10) -> Cl
 class BaseHttpClient(ABC):
     def __init__(
         self,
+        *,
         session: ClientSession,
         api_key: str = "",
         secret_key: str = "",

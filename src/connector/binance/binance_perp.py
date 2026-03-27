@@ -1,14 +1,12 @@
 from typing import Any, Type
 
-from connector.base_classes import MarketType, OrderbookDelta
+from connector.base_classes import MarketType
 from connector.http_client import BaseHttpClient
-from connector.orderbook_service import BaseOrderbookService
 from connector.instrument import BaseInstrumentManager, Instrument
 from connector.public_trade_service import BasePublicTradeService
-from connector.data_parser import BaseDataParser
-from connector.events import OrderbookDeltaEvent
+from connector.orderbook_service import BaseOrderbookService
 
-from connector.binance.binance_orderbook import BinanceOrderbookService, BinanceOrderbookDataParser
+from connector.binance.binance_orderbook import BinancePartialOrderbookService
 from connector.binance.binance_public_trade import BinancePublicTradeService
 from connector.binance.binance_base import BinanceBase, BinanceBaseInstrumentManager, BinanceHttpClientBase
 from connector.binance.constants import base_perp_url, perp_exchange_info_url, ws_perp_url
@@ -31,49 +29,40 @@ class BinancePerpInstrumentManager(BinanceBaseInstrumentManager):
         unify_symbol = instrument_info["baseAsset"] + instrument_info["quoteAsset"]
 
         return Instrument(
-            exchange=self.name,
-            market_type=self.market_type,
             exchange_symbol=instrument_info["symbol"],
             unified_symbol=unify_symbol,
         )
 
 
-class BinancePerpOrderbookDataParser(BinanceOrderbookDataParser):
-    def _parse_orderbook_delta(self, data: dict[str, Any]) -> OrderbookDelta:
-        return OrderbookDelta(
-            symbol=str(data["s"]),
-            exchange_ts_ms=int(data["E"]),
-            transaction_ts_ms=int(data["T"]),
-            first_id=int(data["U"]),
-            last_id=int(data["u"]),
-            prev_last_id=int(data["pu"]),
-            bids=self._parse_price_levels(data.get("b", [])),
-            asks=self._parse_price_levels(data.get("a", [])),
-        )
-
-    async def route_message(self, data: dict[str, Any]) -> None:
-        event_type = data.get("e", "")
-
-        if event_type == "depthUpdate":
-            orderbook_delta = self._parse_orderbook_delta(data)
-            self.on_event(OrderbookDeltaEvent(orderbook_delta))
-
-
-class BinancePerpOrderbookService(BinanceOrderbookService):
+class BinancePerpPartialOrderbookService(BinancePartialOrderbookService):
     @property
     def ws_url(self) -> str:
         return ws_perp_url
 
-    @property
-    def data_parser_type(self) -> Type[BaseDataParser]:
-        return BinancePerpOrderbookDataParser
+    def get_channel(self, symbol: str) -> str:
+        return f"{symbol.lower()}@depth20"  # @depth<levels> OR @depth<levels>@500ms OR @depth<levels>@100ms
 
-    def is_gap(self, delta: OrderbookDelta) -> bool:
-        orderbook = self._items[delta.symbol]
-        result = orderbook.last_id != delta.prev_last_id and orderbook.last_id != 0
-        if result:
-            self.logger.info(f"Gap detected. last_id={orderbook.last_id}, prev_last_id={delta.prev_last_id}")
-        return result
+    def handle_message(self, message: str) -> None:
+        pos = message.find('"e":')
+        if pos == -1:
+            return
+        e_start = message.find('"', pos + 4) + 1
+        e_end = message.find('"', e_start)
+        event_type = message[e_start:e_end]
+
+        if event_type != "depthUpdate":
+            return
+
+        pos = message.find('"s":')
+        if pos == -1:
+            return
+
+        s_start = message.find('"', pos + 4) + 1
+        s_end = message.find('"', s_start)
+        symbol = message[s_start:s_end]
+
+        orderbook = self[symbol]
+        orderbook.message = message
 
 
 class BinancePerpPublicTradeService(BinancePublicTradeService):
@@ -97,7 +86,7 @@ class BinancePerp(BinanceBase):
 
     @property
     def orderbook_service_type(self) -> Type[BaseOrderbookService]:
-        return BinancePerpOrderbookService
+        return BinancePerpPartialOrderbookService
 
     @property
     def public_trade_service_type(self) -> Type[BasePublicTradeService]:
