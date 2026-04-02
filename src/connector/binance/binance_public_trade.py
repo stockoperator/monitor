@@ -35,4 +35,4 @@ class BinancePublicTradeService(BasePublicTradeService):
             thread_ms = (time.thread_time_ns() - tt0) / 1e6
 
             if wall_ms >= 2:
-                self.logger.info("append wall=%.3f ms thread=%.3f", wall_ms, thread_ms)
+                self.logger.info("append wall=%.1f ms thread=%.1f", wall_ms, thread_ms)

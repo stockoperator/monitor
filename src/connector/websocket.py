@@ -19,7 +19,7 @@ class WebsocketTransport:
         message_handler: Callable[[str], None],
         logger: Logger = null_logger(),
         event_queue: Queue[Event] | None = None,
-        heartbeat: int = 20,
+        heartbeat: int = 40,
     ) -> None:
         self.session = session
         self.ws_url = url

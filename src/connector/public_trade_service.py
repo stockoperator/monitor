@@ -14,7 +14,7 @@ class BasePublicTrades(ABC):
     def __init__(self, size: int = 10_000):
         self.size = size
         self.idx: int = -1
-        self.timestamps = np.zeros(size, dtype=np.int64)
+        self.timestamps = np.zeros(size, dtype=np.uint64)
         self.prices = np.zeros(size, dtype=np.float64)
         self.volumes = np.zeros(size, dtype=np.float64)
 
@@ -85,9 +85,9 @@ class BasePublicTradeService(BaseDataService):
             instruments=instruments,
             logger=logger,
         )
-        self._items: dict[str, TradesContainer] = {}
+        self.containers: dict[str, TradesContainer] = {}
 
     def __getitem__(self, symbol: str) -> TradesContainer:
-        if symbol not in self._items:
-            self._items[symbol] = TradesContainer()
-        return self._items[symbol]
+        if symbol not in self.containers:
+            self.containers[symbol] = TradesContainer()
+        return self.containers[symbol]

@@ -140,7 +140,7 @@ def plot_price_and_cumulative_delta_notional(
     Для feature='1s'/'1m'/'1h' используется delta_volumes.
     Для feature='raw' используется signed volumes из PublicTrades.
     """
-    trade_container = connector.trade_container[symbol]
+    trade_container = connector.trade_service[symbol]
     public_trades = _resolve_series(trade_container, feature)
     if len(public_trades) == 0:
         print(f"{symbol}: буфер пуст")

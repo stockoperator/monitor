@@ -33,19 +33,19 @@ class BaseConnector(ABC):
             logger=self.logger.getChild("http"),
         )
 
-        self.instruments = self.instrument_manager_type(
+        self.instrument_manager = self.instrument_manager_type(
             http_client=self.http_client,
             logger=self.logger.getChild("instruments"),
         )
-        self.orderbooks = self.orderbook_service_type(
+        self.orderbook_service = self.orderbook_service_type(
             session=session,
-            instruments=self.instruments,
+            instruments=self.instrument_manager,
             logger=self.logger.getChild("orderbook"),
         )
 
-        self.trade_container = self.public_trade_service_type(
+        self.trade_service = self.public_trade_service_type(
             session=session,
-            instruments=self.instruments,
+            instruments=self.instrument_manager,
             logger=self.logger.getChild("trade_container"),
         )
 
@@ -74,9 +74,9 @@ class BaseConnector(ABC):
     def market_type(self) -> MarketType: ...
 
     async def run(self) -> None:
-        await self.instruments.update_instruments()
+        await self.instrument_manager.update_instruments()
 
         async with asyncio.TaskGroup() as tg:
-            tg.create_task(self.instruments.update_instruments_loop())
-            tg.create_task(self.trade_container.run())
+            tg.create_task(self.instrument_manager.update_instruments_loop())
+            tg.create_task(self.trade_service.run())
             # tg.create_task(self.orderbooks.run())

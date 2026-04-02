@@ -1,5 +1,5 @@
 import logging
-import logging.handlers
+from logging.handlers import QueueHandler, QueueListener, RotatingFileHandler
 from queue import Queue
 
 
@@ -11,7 +11,7 @@ def null_logger() -> logging.Logger:
     return logger
 
 
-class AsyncLogger:
+class AsyncLogger(logging.Logger):
     def __init__(
         self,
         name: str = "AsyncLogger",
@@ -20,24 +20,19 @@ class AsyncLogger:
         backup_count: int = 3,
         level: int = logging.INFO,
     ) -> None:
+        super().__init__(name, level=level)
+        self.propagate = False
+
         self.log_queue: Queue[logging.LogRecord] = Queue()
+        self.queue_handler = QueueHandler(self.log_queue)
+        self.addHandler(self.queue_handler)
 
-        self.logger = logging.getLogger(name)
-        self.logger.setLevel(level)
-        self.logger.propagate = False
-
-        self.queue_handler = logging.handlers.QueueHandler(self.log_queue)
-        self.logger.addHandler(self.queue_handler)
-
-        self.rotating_handler = logging.handlers.RotatingFileHandler(log_file, maxBytes=max_bytes, backupCount=backup_count)
+        self.rotating_handler = RotatingFileHandler(log_file, maxBytes=max_bytes, backupCount=backup_count)
         formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
         self.rotating_handler.setFormatter(formatter)
 
-        self.listener = logging.handlers.QueueListener(self.log_queue, self.rotating_handler, respect_handler_level=True)
+        self.listener = QueueListener(self.log_queue, self.rotating_handler, respect_handler_level=True)
         self.listener.start()
-
-    def get_logger(self) -> logging.Logger:
-        return self.logger
 
     def stop(self) -> None:
         try:

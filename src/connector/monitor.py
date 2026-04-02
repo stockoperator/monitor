@@ -1,23 +1,17 @@
 import asyncio
 import time
 from typing import Type
-import os
-import uvloop
 
-
-from connector.binance.binance_perp import BinancePerp
-from connector.binance.binance_spot import BinanceSpot
 from connector.connector import BaseConnector
 from connector.http_client import make_session
 from connector.async_logger import AsyncLogger
 from connector.utils import traceback_error_str
-
-asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+from connector.utils_io import save_all_trade_data, load_all_trade_data
 
 
 class Monitor:
     def __init__(self, connector_type_list: list[Type[BaseConnector]]) -> None:
-        self.logger = AsyncLogger("m").get_logger()
+        self.logger: AsyncLogger = AsyncLogger("m")
         self.connectors: dict[Type[BaseConnector], BaseConnector] = {}
         self.connector_type_list = connector_type_list
 
@@ -40,6 +34,15 @@ class Monitor:
                 for connector_type in self.connector_type_list:
                     connector = connector_type(session=session, logger=self.logger)
                     self.connectors[connector_type] = connector
+
+                try:
+                    await load_all_trade_data(self.connectors)
+                    self.logger.info("TradeContainer data successfully restored.")
+                except FileNotFoundError:
+                    self.logger.warning("Snapshot file not found. Using empty state.")
+                except Exception:
+                    self.logger.error("Error while loading data:\n%s", traceback_error_str())
+
                 async with asyncio.TaskGroup() as tg:
                     tg.create_task(self.loop_lag_monitor())
 
@@ -49,11 +52,11 @@ class Monitor:
             self.logger.info("Monitor stopped (CancelledError)")
         except Exception:
             self.logger.error(traceback_error_str())
-
-
-if __name__ == "__main__":
-    print(f"PID: {os.getpid()}")
-    connector_type_list: list[Type[BaseConnector]] = [BinancePerp, BinanceSpot]
-    m = Monitor(connector_type_list=connector_type_list)
-    # gc.disable()
-    asyncio.run(m.run())
+        finally:
+            try:
+                await save_all_trade_data(self.connectors)
+                self.logger.info("TradeContainer data successfully saved.")
+            except Exception:
+                self.logger.error(traceback_error_str())
+            finally:
+                self.logger.stop()
