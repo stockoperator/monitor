@@ -16,6 +16,7 @@ def save_all_trade_data_sync(connectors_dict: dict[Type[BaseConnector], BaseConn
                 s_data = {
                     "size": series.size,
                     "idx": series.idx,
+                    "wrapped": series.wrapped,
                     "timestamps": series.timestamps.copy(),
                     "prices": series.prices.copy(),
                     "volumes": series.volumes.copy(),
@@ -52,6 +53,7 @@ def load_all_trade_data_sync(connectors_dict: dict[Type[BaseConnector], BaseConn
                 series = getattr(container, attr)
                 series.size = s_data["size"]
                 series.idx = s_data["idx"]
+                series.wrapped = s_data["wrapped"]
                 series.timestamps[:] = s_data["timestamps"]
                 series.prices[:] = s_data["prices"]
                 series.volumes[:] = s_data["volumes"]

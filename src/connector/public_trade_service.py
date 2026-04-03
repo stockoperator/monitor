@@ -9,17 +9,18 @@ from connector.data_service import BaseDataService
 
 
 class BasePublicTrades(ABC):
-    __slots__ = ("size", "idx", "timestamps", "prices", "volumes")
+    __slots__ = ("size", "idx", "timestamps", "prices", "volumes", "wrapped")
 
     def __init__(self, size: int = 10_000):
         self.size = size
         self.idx: int = -1
+        self.wrapped: bool = False
         self.timestamps = np.zeros(size, dtype=np.uint64)
         self.prices = np.zeros(size, dtype=np.float64)
         self.volumes = np.zeros(size, dtype=np.float64)
 
     def __len__(self) -> int:
-        return min(self.idx + 1, self.size)
+        return self.size if self.wrapped else self.idx + 1
 
     @abstractmethod
     def add(self, timestamp_ms: int, price: float, amount: float, is_buy: bool) -> None: ...
@@ -28,18 +29,16 @@ class BasePublicTrades(ABC):
 class PublicTrades(BasePublicTrades):
     def add(self, timestamp_ms: int, price: float, amount: float, is_buy: bool) -> None:
         self.idx += 1
-        i = self.idx % self.size
-        self.timestamps[i] = timestamp_ms
-        self.prices[i] = price
-        self.volumes[i] = amount if is_buy else -amount
-
-    @property
-    def last_price(self) -> float:
-        return float(self.prices[self.idx % self.size])
+        if self.idx == self.size:
+            self.idx = 0
+            self.wrapped = True
+        self.timestamps[self.idx] = timestamp_ms
+        self.prices[self.idx] = price
+        self.volumes[self.idx] = amount if is_buy else -amount
 
 
 class PublicTimeFrameTrades(BasePublicTrades):
-    __slots__ = BasePublicTrades.__slots__ + ("period_ms", "delta_volumes")
+    __slots__ = ("period_ms", "delta_volumes")
 
     def __init__(self, size: int = 10_000, period_sec: int = 60):
         super().__init__(size=size)
@@ -48,20 +47,21 @@ class PublicTimeFrameTrades(BasePublicTrades):
 
     def add(self, timestamp_ms: int, price: float, amount: float, is_buy: bool) -> None:
         timestamp_ms = (timestamp_ms // self.period_ms) * self.period_ms
-        i = self.idx % self.size
 
-        if i == -1 or timestamp_ms > self.timestamps[i]:
+        if self.idx == -1 or timestamp_ms > self.timestamps[self.idx]:
             self.idx += 1
-            i = self.idx % self.size
-            self.timestamps[i] = timestamp_ms
-            self.volumes[i] = 0.0
-            self.delta_volumes[i] = 0.0
-        elif timestamp_ms < self.timestamps[i]:  # maybe log error
+            if self.idx == self.size:
+                self.idx = 0
+                self.wrapped = True
+            self.timestamps[self.idx] = timestamp_ms
+            self.volumes[self.idx] = 0.0
+            self.delta_volumes[self.idx] = 0.0
+        elif timestamp_ms < self.timestamps[self.idx]:  # maybe log error
             return
 
-        self.prices[i] = price
-        self.volumes[i] += amount
-        self.delta_volumes[i] += amount if is_buy else -amount
+        self.prices[self.idx] = price
+        self.volumes[self.idx] += amount
+        self.delta_volumes[self.idx] += amount if is_buy else -amount
 
 
 class TradesContainer:

@@ -30,7 +30,7 @@ def _left_bound_ms(from_ts_ms: int | None = None, from_date_utc: str | None = No
     return int(dt.timestamp() * 1000)
 
 
-def _ring_parts(arr: np.ndarray, idx: int) -> tuple[np.ndarray, np.ndarray]:
+def _ring_parts(arr: np.ndarray, idx: int, wrapped: bool) -> tuple[np.ndarray, np.ndarray]:
     """
     Возвращает данные кольцевого буфера в хронологическом порядке как две части:
     oldest -> newest = part1, затем part2.
@@ -44,7 +44,7 @@ def _ring_parts(arr: np.ndarray, idx: int) -> tuple[np.ndarray, np.ndarray]:
     size = arr.shape[0]
 
     # Буфер ещё не перезаписывался.
-    if idx < size:
+    if not wrapped:
         return arr[: idx + 1], empty
 
     # Буфер уже перезаписывался.
@@ -146,15 +146,15 @@ def plot_price_and_cumulative_delta_notional(
         print(f"{symbol}: буфер пуст")
         return
 
-    ts1, ts2 = _ring_parts(public_trades.timestamps, public_trades.idx)
-    p1, p2 = _ring_parts(public_trades.prices, public_trades.idx)
+    ts1, ts2 = _ring_parts(public_trades.timestamps, public_trades.idx, public_trades.wrapped)
+    p1, p2 = _ring_parts(public_trades.prices, public_trades.idx, public_trades.wrapped)
 
     # Для PublicTimeFrameTrades используем delta_volumes,
     # для PublicTrades дельта = signed volumes.
     if hasattr(public_trades, "delta_volumes") and isinstance(public_trades, PublicTimeFrameTrades):
-        d1, d2 = _ring_parts(public_trades.delta_volumes, public_trades.idx)
+        d1, d2 = _ring_parts(public_trades.delta_volumes, public_trades.idx, public_trades.wrapped)
     else:
-        d1, d2 = _ring_parts(public_trades.volumes, public_trades.idx)
+        d1, d2 = _ring_parts(public_trades.volumes, public_trades.idx, public_trades.wrapped)
 
     left_ms = _left_bound_ms(from_ts_ms=from_ts_ms, from_date_utc=from_date_utc)
 
@@ -181,7 +181,7 @@ def plot_price_and_cumulative_delta_notional(
     ax1.tick_params(axis="y", labelcolor=PRICE_COLOR)  # type: ignore
     ax1.grid(True, linestyle="--", alpha=0.5)  # type: ignore
 
-    last_price = p2[-1] if p2.size else p1[-1]
+    last_price = round(p2[-1] if p2.size else p1[-1], 10)
     ax1.axhline(last_price, linestyle="--", alpha=0.35, color=PRICE_COLOR)  # type: ignore
 
     ax2 = ax1.twinx()
@@ -202,7 +202,7 @@ def plot_price_and_cumulative_delta_notional(
 
     connector_name = connector.__class__.__name__
     points_count = x1.size + x2.size
-    ax1.set_title(f"{connector_name} | {symbol} | feature={feature} | {start_str} - {end_str} | points={points_count}")  # type: ignore
+    ax1.set_title(f"{connector_name} | {symbol} | tf: {feature} | {start_str} - {end_str} | points: {points_count} | price: {last_price}")  # type: ignore
 
     fig.autofmt_xdate()
     fig.tight_layout()
