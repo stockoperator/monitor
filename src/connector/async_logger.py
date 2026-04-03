@@ -1,3 +1,4 @@
+import atexit
 import logging
 from logging.handlers import QueueHandler, QueueListener, RotatingFileHandler
 from queue import Queue
@@ -11,31 +12,28 @@ def null_logger() -> logging.Logger:
     return logger
 
 
-class AsyncLogger(logging.Logger):
-    def __init__(
-        self,
-        name: str = "AsyncLogger",
-        log_file: str = "app.log",
-        max_bytes: int = 5 * 1024 * 1024,
-        backup_count: int = 3,
-        level: int = logging.INFO,
-    ) -> None:
-        super().__init__(name, level=level)
-        self.propagate = False
+def make_async_logger(
+    name: str = "app",
+    log_file: str = "app.log",
+    max_bytes: int = 5 * 1024 * 1024,
+    backup_count: int = 3,
+    level: int = logging.INFO,
+) -> logging.Logger:
+    log_queue: Queue[logging.LogRecord] = Queue()
 
-        self.log_queue: Queue[logging.LogRecord] = Queue()
-        self.queue_handler = QueueHandler(self.log_queue)
-        self.addHandler(self.queue_handler)
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    logger.propagate = False
 
-        self.rotating_handler = RotatingFileHandler(log_file, maxBytes=max_bytes, backupCount=backup_count)
-        formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
-        self.rotating_handler.setFormatter(formatter)
+    queue_handler = QueueHandler(log_queue)
+    logger.addHandler(queue_handler)
 
-        self.listener = QueueListener(self.log_queue, self.rotating_handler, respect_handler_level=True)
-        self.listener.start()
+    rotating_handler = RotatingFileHandler(log_file, maxBytes=max_bytes, backupCount=backup_count)
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+    rotating_handler.setFormatter(formatter)
 
-    def stop(self) -> None:
-        try:
-            self.listener.stop()
-        except Exception:
-            pass
+    listener = QueueListener(log_queue, rotating_handler, respect_handler_level=True)
+    listener.start()
+    atexit.register(listener.stop)
+
+    return logger

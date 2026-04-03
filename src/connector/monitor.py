@@ -4,14 +4,14 @@ from typing import Type
 
 from connector.connector import BaseConnector
 from connector.http_client import make_session
-from connector.async_logger import AsyncLogger
+from connector.async_logger import make_async_logger
 from connector.utils import traceback_error_str
 from connector.utils_io import save_all_trade_data, load_all_trade_data
 
 
 class Monitor:
     def __init__(self, connector_type_list: list[Type[BaseConnector]]) -> None:
-        self.logger: AsyncLogger = AsyncLogger("m")
+        self.logger = make_async_logger("m")
         self.connectors: dict[Type[BaseConnector], BaseConnector] = {}
         self.connector_type_list = connector_type_list
 
@@ -58,5 +58,3 @@ class Monitor:
                 self.logger.info("TradeContainer data successfully saved.")
             except Exception:
                 self.logger.error(traceback_error_str())
-            finally:
-                self.logger.stop()
