@@ -30,31 +30,14 @@ def _left_bound_ms(from_ts_ms: int | None = None, from_date_utc: str | None = No
     return int(dt.timestamp() * 1000)
 
 
-def _ring_parts(arr: np.ndarray, idx: int, wrapped: bool) -> tuple[np.ndarray, np.ndarray]:
+def _ring_parts(arr: np.ndarray, split_idx: int, end: int) -> tuple[np.ndarray, np.ndarray]:
     """
     Возвращает данные кольцевого буфера в хронологическом порядке как две части:
     oldest -> newest = part1, затем part2.
 
     Никаких копий массива не создаёт.
     """
-    empty = arr[:0]
-    if idx < 0:
-        return empty, empty
-
-    size = arr.shape[0]
-
-    # Буфер ещё не перезаписывался.
-    if not wrapped:
-        return arr[: idx + 1], empty
-
-    # Буфер уже перезаписывался.
-    start = (idx + 1) % size
-
-    # Хронологический порядок уже совпадает с arr[0:].
-    if start == 0:
-        return arr, empty
-
-    return arr[start:], arr[:start]
+    return arr[split_idx:end], arr[:split_idx]
 
 
 def _resolve_series(trade_container: TradesContainer, feature: str) -> BasePublicTrades:
@@ -146,15 +129,18 @@ def plot_price_and_cumulative_delta_notional(
         print(f"{symbol}: буфер пуст")
         return
 
-    ts1, ts2 = _ring_parts(public_trades.timestamps, public_trades.idx, public_trades.wrapped)
-    p1, p2 = _ring_parts(public_trades.prices, public_trades.idx, public_trades.wrapped)
+    split_idx = public_trades.idx + 1
+    end = len(public_trades)
+
+    ts1, ts2 = _ring_parts(public_trades.timestamps, split_idx, end)
+    p1, p2 = _ring_parts(public_trades.prices, split_idx, end)
 
     # Для PublicTimeFrameTrades используем delta_volumes,
     # для PublicTrades дельта = signed volumes.
     if hasattr(public_trades, "delta_volumes") and isinstance(public_trades, PublicTimeFrameTrades):
-        d1, d2 = _ring_parts(public_trades.delta_volumes, public_trades.idx, public_trades.wrapped)
+        d1, d2 = _ring_parts(public_trades.delta_volumes, split_idx, end)
     else:
-        d1, d2 = _ring_parts(public_trades.volumes, public_trades.idx, public_trades.wrapped)
+        d1, d2 = _ring_parts(public_trades.volumes, split_idx, end)
 
     left_ms = _left_bound_ms(from_ts_ms=from_ts_ms, from_date_utc=from_date_utc)
 
@@ -194,6 +180,9 @@ def plot_price_and_cumulative_delta_notional(
     ax2.set_ylabel("cumulative delta, usd", color=DELTA_COLOR)  # type: ignore
     ax2.tick_params(axis="y", labelcolor=DELTA_COLOR)  # type: ignore
     ax2.yaxis.set_major_formatter(FuncFormatter(_delta_axis_formatter))
+
+    last_cd = round(cd2[-1] if p2.size else cd1[-1], 10)
+    ax2.axhline(last_cd, linestyle="--", alpha=0.35, color=DELTA_COLOR)  # type: ignore
 
     start_x = x1[0] if x1.size else x2[0]
     end_x = x2[-1] if x2.size else x1[-1]
