@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
-from connector.public_trade_service import BasePublicTrades, PublicTimeFrameTrades, TradesContainer
+from connector.public_trade_service import PublicTrades, PublicTimeFrameTrades, TradesContainer
 from connector.connector import BaseConnector
 
 PRICE_COLOR = "tab:blue"
@@ -40,7 +40,7 @@ def _ring_parts(arr: np.ndarray, split_idx: int, end: int) -> tuple[np.ndarray, 
     return arr[split_idx:end], arr[:split_idx]
 
 
-def _resolve_series(trade_container: TradesContainer, feature: str) -> BasePublicTrades:
+def _resolve_series(trade_container: TradesContainer, feature: str) -> PublicTrades:
     """
     feature:
       - 'raw' | 'public_trades' -> trade_container.public_trades
