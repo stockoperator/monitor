@@ -54,7 +54,7 @@ class WebsocketTransport:
                         if msg.type == WSMsgType.TEXT:
                             self.message_handler(msg.data)
                             count += 1
-                            if count % 100 == 0:
+                            if count % 10 == 0:
                                 await sleep(0)
                                 count = 0
                         elif msg.type in (WSMsgType.CLOSED, WSMsgType.CLOSE, WSMsgType.CLOSING, WSMsgType.ERROR):
