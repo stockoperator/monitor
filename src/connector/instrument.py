@@ -98,7 +98,7 @@ class BaseInstrumentManager(ABC):
             if new_exchange_symbols:
                 for queue in self.on_instruments_added:
                     queue.put_nowait(InstrumentAddedEvent(new_exchange_symbols))
-                if not old_keys:
+                if old_keys:
                     self.logger.info(f"new instruments added: {new_keys}")
 
         except NotImplementedError:
