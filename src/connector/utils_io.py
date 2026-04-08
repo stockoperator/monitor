@@ -1,9 +1,22 @@
 import pickle
 import asyncio
 import numpy as np
-from typing import Type, Any
+from typing import Type, Any, cast
 
 from connector.connector import BaseConnector
+
+
+def get_all_slot_attrs(obj: object) -> set[str]:
+    attrs: set[str] = set()
+
+    for cls in type(obj).__mro__:
+        slots = getattr(cls, "__slots__", ())
+
+        if isinstance(slots, tuple):
+            for slot_attr in cast(tuple[str, ...], slots):
+                attrs.add(slot_attr)
+
+    return attrs
 
 
 def save_all_trade_data_sync(connectors: dict[Type[BaseConnector], BaseConnector], path: str):
@@ -15,16 +28,14 @@ def save_all_trade_data_sync(connectors: dict[Type[BaseConnector], BaseConnector
             trade_container = connector.trade_service[instrument.exchange_symbol]  # has default
             container_data = {}
 
-            for trade_container_attr in ("public_trades", "public_trades_1s", "public_trades_1m", "public_trades_1h", "public_side_trades"):
-                if hasattr(trade_container, trade_container_attr):
-                    public_trades = getattr(trade_container, trade_container_attr)
-                    public_trades_data = {}
+            for trade_container_attr in trade_container.__slots__:
+                public_trades = getattr(trade_container, trade_container_attr)
+                public_trades_data = {}
 
-                    for public_trade_attr in ("size", "idx", "wrapped", "timestamps", "prices", "volumes", "open_prices", "close_prices", "delta_volumes"):
-                        if hasattr(public_trades, public_trade_attr):
-                            public_trades_data[public_trade_attr] = getattr(public_trades, public_trade_attr)
+                for public_trade_attr in get_all_slot_attrs(public_trades):
+                    public_trades_data[public_trade_attr] = getattr(public_trades, public_trade_attr)
 
-                    container_data[trade_container_attr] = public_trades_data
+                container_data[trade_container_attr] = public_trades_data
 
             data[connector_type.__name__][instrument.exchange_symbol] = container_data
 

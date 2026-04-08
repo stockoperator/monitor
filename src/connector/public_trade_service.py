@@ -98,6 +98,8 @@ class PublicSideTrades(BasePublicTrades):
 
 
 class TradesContainer:
+    __slots__ = ("public_trades", "public_trades_1s", "public_trades_1m", "public_trades_1h", "public_side_trades")
+
     def __init__(self, size: int = 1440, size_1s: int = 1440, size_1m: int = 1440, size_1h: int = 1440):
         self.public_trades = PublicTrades(size=size)
         self.public_trades_1s = PublicTimeFrameTrades(size=size_1s, period_sec=1)
