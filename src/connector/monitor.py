@@ -5,6 +5,7 @@ from typing import Type
 from connector.connector import BaseConnector
 from connector.http_client import make_session
 from connector.async_logger import make_async_logger
+from connector.notification import Notification
 from connector.utils import traceback_error_str
 from connector.utils_io import save_all_trade_data, load_all_trade_data
 
@@ -31,6 +32,8 @@ class Monitor:
     async def run(self) -> None:
         try:
             async with make_session() as session:
+                self.notification = Notification(session)
+
                 for connector_type in self.connector_type_list:
                     connector = connector_type(session=session, logger=self.logger)
                     self.connectors[connector_type] = connector

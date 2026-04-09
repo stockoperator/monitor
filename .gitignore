@@ -3,3 +3,4 @@
 *.log
 *old*
 *.pkl
+config.py
