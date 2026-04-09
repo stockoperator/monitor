@@ -19,7 +19,11 @@ def get_all_slot_attrs(obj: object) -> set[str]:
     return attrs
 
 
-def save_all_trade_data_sync(connectors: dict[Type[BaseConnector], BaseConnector], path: str):
+async def save_all_trade_data(connectors: dict[Type[BaseConnector], BaseConnector], path: str = "all_trade_containers.pkl"):
+    def _dump_pickle(path: str, data: dict[str, Any]) -> None:
+        with open(path, "wb") as f:
+            pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+
     data: dict[str, Any] = {}
     for connector_type, connector in connectors.items():
         data[connector_type.__name__] = {}
@@ -39,18 +43,17 @@ def save_all_trade_data_sync(connectors: dict[Type[BaseConnector], BaseConnector
 
             data[connector_type.__name__][instrument.exchange_symbol] = container_data
 
-    with open(path, "wb") as f:
-        pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+            await asyncio.sleep(0)
+
+    await asyncio.to_thread(_dump_pickle, path, data)
 
 
-async def save_all_trade_data(connectors: dict[Type[BaseConnector], BaseConnector], path: str = "all_trade_containers.pkl"):
-    loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, save_all_trade_data_sync, connectors, path)
+async def load_all_trade_data(connectors: dict[Type[BaseConnector], BaseConnector], path: str = "all_trade_containers.pkl"):
+    def _load_pickle(path: str) -> dict[str, Any]:
+        with open(path, "rb") as f:
+            return pickle.load(f)
 
-
-def load_all_trade_data_sync(connectors: dict[Type[BaseConnector], BaseConnector], path: str):
-    with open(path, "rb") as f:
-        data = pickle.load(f)
+    data = await asyncio.to_thread(_load_pickle, path)
 
     for connector_type, connector in connectors.items():
         for symbol, trade_container_data in data.get(connector_type.__name__, {}).items():
@@ -69,7 +72,4 @@ def load_all_trade_data_sync(connectors: dict[Type[BaseConnector], BaseConnector
                             else:
                                 setattr(public_trades, public_trade_attr, value)
 
-
-async def load_all_trade_data(connectors: dict[Type[BaseConnector], BaseConnector], path: str = "all_trade_containers.pkl"):
-    loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, load_all_trade_data_sync, connectors, path)
+            await asyncio.sleep(0)

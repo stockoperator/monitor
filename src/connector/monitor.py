@@ -29,6 +29,11 @@ class Monitor:
             if lag_ms >= threshold_ms:
                 self.logger.warning(f"event loop spike: {lag_ms:.1f} ms, thread: {lagt_ms:.1f} ms")
 
+    async def loop_save_trades(self):
+        while True:
+            await asyncio.sleep(60)
+            await save_all_trade_data(self.connectors)
+
     async def run(self) -> None:
         try:
             async with make_session() as session:
@@ -48,6 +53,7 @@ class Monitor:
 
                 async with asyncio.TaskGroup() as tg:
                     tg.create_task(self.loop_lag_monitor())
+                    tg.create_task(self.loop_save_trades())
 
                     for connector in self.connectors.values():
                         tg.create_task(connector.run())
