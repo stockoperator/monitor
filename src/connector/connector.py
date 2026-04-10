@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 import asyncio
 from aiohttp import ClientSession
 from typing import Type
+import os
 import logging
 
 from connector.async_logger import null_logger
@@ -22,9 +23,9 @@ class BaseConnector(ABC):
         passphrase: str = "",
         logger: logging.Logger = null_logger(),
     ) -> None:
-        self.api_key = api_key
-        self.secret_key = secret_key
-        self.passphrase = passphrase
+        self.api_key = api_key if api_key else os.getenv(f"{self.name.value.upper()}_API_KEY", "")
+        self.secret_key = secret_key if secret_key else os.getenv(f"{self.name.value.upper()}_SECRET_KEY", "")
+        self.passphrase = passphrase if passphrase else os.getenv(f"{self.name.value.upper()}_PASSPHRASE", "")
 
         self.logger = logger.getChild(self.__class__.__name__)
 
