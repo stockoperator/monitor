@@ -31,6 +31,9 @@ class BaseConnector(ABC):
 
         self.http_client = self.http_client_type(
             session=session,
+            api_key=self.api_key,
+            secret_key=self.secret_key,
+            passphrase=self.passphrase,
             logger=self.logger.getChild("http"),
         )
 

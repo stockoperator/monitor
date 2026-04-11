@@ -27,11 +27,13 @@ class BaseHttpClient(ABC):
         session: ClientSession,
         api_key: str = "",
         secret_key: str = "",
+        passphrase: str = "",
         logger: logging.Logger = null_logger(),
     ) -> None:
         self.session = session
         self.api_key = api_key
         self.secret_key = secret_key
+        self.passphrase = passphrase
         self.logger = logger
 
     @abstractmethod
