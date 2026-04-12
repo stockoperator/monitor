@@ -6,6 +6,9 @@ from matplotlib.ticker import FuncFormatter
 from connector.public_trade_service import PublicTrades, PublicTimeFrameTrades, TradesContainer
 from connector.connector import BaseConnector
 
+plt.rcParams["font.sans-serif"] = ["Noto Sans CJK SC", "WenQuanYi Zen Hei"]
+plt.rcParams["axes.unicode_minus"] = False  # чтобы минус нормально показывался
+
 PRICE_COLOR = "tab:blue"
 DELTA_COLOR = "tab:red"
 
