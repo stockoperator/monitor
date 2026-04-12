@@ -37,6 +37,9 @@ class BaseInstrumentManager(ABC):
 
         self._items: dict[str, Instrument] = {}
 
+    def get(self, key: str, default: None = None) -> Instrument | None:
+        return self._items.get(key, default)
+
     def __getitem__(self, symbol: str) -> Instrument:
         return self._items[symbol]
 
