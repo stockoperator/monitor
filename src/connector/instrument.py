@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import asyncio
 import logging
 
@@ -8,6 +8,15 @@ from connector.http_client import BaseHttpClient, HTTPMethod
 from connector.utils import traceback_error_str, validate_dict_by_dict
 from connector.async_logger import null_logger
 from connector.events import Event, InstrumentAddedEvent
+
+
+@dataclass(kw_only=True, eq=False, slots=True)
+class LeverageBracket:
+    initial_leverage: float
+    maint_margin_ratio: float
+    notional_floor: int
+    notional_cap: int
+    cumulative_amount: int
 
 
 @dataclass(kw_only=True, eq=False, slots=True)
@@ -20,6 +29,16 @@ class Instrument:
     min_qty: float | None = None
     max_qty: float | None = None
     qty_step: float | None = None
+    min_notional: float | None = None
+    liquidation_fee: float | None = None
+    leverage_brackets: tuple[LeverageBracket, ...] = field(default_factory=tuple)
+
+    def find_leverage_bracket(self, notional: float) -> LeverageBracket:
+        for bracket in self.leverage_brackets:
+            if bracket.notional_floor <= notional < bracket.notional_cap:
+                return bracket
+
+        raise ValueError(f"No leverage bracket found for {self.unified_symbol}, notional={notional}")
 
 
 class BaseInstrumentManager(ABC):
@@ -59,6 +78,9 @@ class BaseInstrumentManager(ABC):
 
     @abstractmethod
     def make_instrument_from_instrument_info(self, instrument_info: dict[str, Any]) -> Instrument: ...
+
+    @abstractmethod
+    async def update_leverage_brackets(self) -> None: ...
 
     async def get_exchange_info(self) -> dict[str, Any]:
         return await self.http_client.request(method=HTTPMethod.GET, url=self.exchange_info_url)
@@ -103,6 +125,8 @@ class BaseInstrumentManager(ABC):
                     queue.put_nowait(InstrumentAddedEvent(new_exchange_symbols))
                 if old_keys:
                     self.logger.info(f"new instruments added: {added_keys}")
+
+            await self.update_leverage_brackets()
 
         except NotImplementedError:
             raise

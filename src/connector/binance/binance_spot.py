@@ -25,6 +25,8 @@ class BinanceSpotInstrumentManager(BinanceBaseInstrumentManager):
             "quoteAsset": "USDT",
         }
 
+    async def update_leverage_brackets(self) -> None: ...
+
 
 class BinanceSpotPartialOrderbookService(BinancePartialOrderbookService):
     @property
