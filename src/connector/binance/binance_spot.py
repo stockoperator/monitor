@@ -37,6 +37,7 @@ class BinanceSpotPartialOrderbookService(BinancePartialOrderbookService):
         return f"{symbol.lower()}@bookTicker"  # @depth<levels> OR @depth<levels>@500ms OR @depth<levels>@100ms
 
     def handle_message(self, message: str) -> None:
+        # Fast path: full JSON parsing is too slow, parse only 'u' and 's' manually
         pos = message.find('"u":')
         if pos == -1:
             return

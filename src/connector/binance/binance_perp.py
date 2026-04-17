@@ -83,6 +83,7 @@ class BinancePerpPartialOrderbookService(BinancePartialOrderbookService):
         return f"{symbol.lower()}@depth20"  # @depth<levels> OR @depth<levels>@500ms OR @depth<levels>@100ms
 
     def handle_message(self, message: str) -> None:
+        # Fast path: full JSON parsing is too slow, parse only 'e' and 's' manually
         pos = message.find('"e":')
         if pos == -1:
             return
