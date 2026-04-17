@@ -2,12 +2,9 @@ from aiohttp import ClientSession, ClientWebSocketResponse, WSMessage, WSMsgType
 from logging import Logger
 from asyncio import CancelledError, sleep
 from typing import Callable
-from asyncio import Queue
 
 from connector.async_logger import null_logger
 from connector.utils import traceback_error_str
-from connector.event_queue_manager import EventQueueManager
-from connector.events import Event, WebsocketConnectedEvent
 
 
 class WebsocketTransport:
@@ -17,8 +14,8 @@ class WebsocketTransport:
         session: ClientSession,
         url: str,
         message_handler: Callable[[str], None],
+        on_connected: Callable[[ClientWebSocketResponse], None],
         logger: Logger = null_logger(),
-        event_queue: Queue[Event] | None = None,
         heartbeat: int = 40,
     ) -> None:
         self.session = session
@@ -27,9 +24,7 @@ class WebsocketTransport:
         self.heartbeat = heartbeat
         self.message_handler = message_handler
 
-        self.on_connected: EventQueueManager = EventQueueManager()
-        if event_queue:
-            self.on_connected += event_queue
+        self.on_connected = on_connected
         self.ws: ClientWebSocketResponse | None = None
 
     def terminal_message(self, ws: ClientWebSocketResponse, msg: WSMessage) -> str:
@@ -46,7 +41,7 @@ class WebsocketTransport:
                     except Exception:
                         self.logger.error(traceback_error_str())
 
-                    self.on_connected(WebsocketConnectedEvent(ws))
+                    self.on_connected(ws)
 
                     count: int = 0
                     while True:

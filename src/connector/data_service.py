@@ -31,7 +31,7 @@ class BaseDataService(ABC):
             url=self.ws_url,
             logger=self.logger.getChild("ws"),
             message_handler=self.handle_message,
-            event_queue=self.event_queue,
+            on_connected=lambda ws: self.event_queue.put_nowait(WebsocketConnectedEvent(ws)),
         )
 
         self.subscription = self.subscription_type(logger=self.logger.getChild("subscription"))
