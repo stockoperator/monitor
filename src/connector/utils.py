@@ -31,6 +31,10 @@ def traceback_error_str() -> str:
     return f"{exc_type.__name__}: {exc_value}\n  {'->'.join(call_chain)}\n    {error_line}"
 
 
+def float_or_none(value: Any) -> float | None:
+    return float(value) if value is not None else None
+
+
 def validate_dict_by_dict(source: dict[str, Any], filter: dict[str, Any]) -> bool:
     """Validate dictionary. Filter dictionary: key -> value"""
 

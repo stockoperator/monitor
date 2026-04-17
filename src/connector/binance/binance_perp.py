@@ -7,6 +7,7 @@ from connector.public_trade_service import BasePublicTradeService
 from connector.orderbook_service import BaseOrderbookService
 from connector.http_client import HTTPMethod
 
+from connector.utils import float_or_none
 from connector.binance.binance_orderbook import BinancePartialOrderbookService
 from connector.binance.binance_public_trade import BinancePublicTradeService
 from connector.binance.binance_base import BinanceBase, BinanceBaseInstrumentManager, BinanceHttpClientBase
@@ -27,32 +28,21 @@ class BinancePerpInstrumentManager(BinanceBaseInstrumentManager):
         }
 
     def make_instrument_from_instrument_info(self, instrument_info: dict[str, Any]) -> Instrument:
-        unify_symbol = instrument_info["baseAsset"] + instrument_info["quoteAsset"]
-        price_step, min_price, max_price = None, None, None
-        qty_step, min_qty, max_qty = None, None, None
-        min_notional = None
-        for filter in instrument_info["filters"]:
-            if filter["filterType"] == "PRICE_FILTER":
-                price_step = float(filter.get("tickSize"))
-                min_price = float(filter.get("minPrice"))
-                max_price = float(filter.get("maxPrice"))
-            elif filter["filterType"] == "MARKET_LOT_SIZE":
-                qty_step = float(filter.get("stepSize"))
-                min_qty = float(filter.get("minQty"))
-                max_qty = float(filter.get("maxQty"))
-            elif filter["filterType"] == "MIN_NOTIONAL":
-                min_notional = float(filter.get("notional"))
+        filters: dict[str, dict[str, Any]] = {f["filterType"]: f for f in instrument_info["filters"]}
+        price_f = filters.get("PRICE_FILTER", {})
+        lot_f = filters.get("MARKET_LOT_SIZE", {})
+        notional_f = filters.get("MIN_NOTIONAL", {})
 
         return Instrument(
             exchange_symbol=instrument_info["symbol"],
-            unified_symbol=unify_symbol,
-            price_step=price_step,
-            min_price=min_price,
-            max_price=max_price,
-            qty_step=qty_step,
-            min_qty=min_qty,
-            max_qty=max_qty,
-            min_notional=min_notional,
+            unified_symbol=instrument_info["baseAsset"] + instrument_info["quoteAsset"],
+            price_step=float_or_none(price_f.get("tickSize")),
+            min_price=float_or_none(price_f.get("minPrice")),
+            max_price=float_or_none(price_f.get("maxPrice")),
+            qty_step=float_or_none(lot_f.get("stepSize")),
+            min_qty=float_or_none(lot_f.get("minQty")),
+            max_qty=float_or_none(lot_f.get("maxQty")),
+            min_notional=float_or_none(notional_f.get("notional")),
             liquidation_fee=float(instrument_info["liquidationFee"]),
         )
 
