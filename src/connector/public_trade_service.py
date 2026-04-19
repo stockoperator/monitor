@@ -68,6 +68,16 @@ class PublicTimeFrameTrades(PublicTrades):
         self.volumes[self.idx] += volume
         self.delta_volumes[self.idx] += volume if is_buy else -volume
 
+    def ordered(self) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        end = len(self)
+        split_idx = self.idx + 1
+        ts = np.concatenate((self.timestamps[split_idx:end], self.timestamps[:split_idx]))
+        p = np.concatenate((self.prices[split_idx:end], self.prices[:split_idx]))
+        v = np.concatenate((self.volumes[split_idx:end], self.volumes[:split_idx]))
+        d = np.concatenate((self.delta_volumes[split_idx:end], self.delta_volumes[:split_idx]))
+
+        return ts, p, v, d
+
 
 class PublicSideTrades(BasePublicTrades):
     __slots__ = ("timestamps", "open_prices", "close_prices", "volumes")
