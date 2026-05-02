@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Mapping
 from enum import Enum
 from aiohttp import ClientSession, TCPConnector, ClientTimeout
 import logging
@@ -14,7 +14,16 @@ class HTTPMethod(Enum):
     DELETE = "DELETE"
 
 
-def make_session(*, total_timeout: float = 10.0, limit_per_host: int = 10) -> ClientSession:
+class HttpResponse:
+    __slots__ = ("data", "status", "headers")
+
+    def __init__(self, data: Any, status: int, headers: Mapping[str, str]):
+        self.data = data
+        self.status = status
+        self.headers = headers
+
+
+def make_session(*, total_timeout: float = 10.0, limit_per_host: int = 100) -> ClientSession:
     connector = TCPConnector(keepalive_timeout=30, limit_per_host=limit_per_host, ttl_dns_cache=300)
     timeout = ClientTimeout(total=total_timeout)
     return ClientSession(connector=connector, timeout=timeout)
@@ -46,4 +55,4 @@ class BaseHttpClient(ABC):
         url: str,
         params: dict[str, Any] | None = None,
         is_auth_required: bool = False,
-    ) -> Any: ...
+    ) -> HttpResponse: ...

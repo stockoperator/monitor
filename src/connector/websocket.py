@@ -13,7 +13,7 @@ class WebsocketTransport:
         *,
         session: ClientSession,
         url: str,
-        message_handler: Callable[[str], None],
+        on_message: Callable[[str], None],
         on_connected: Callable[[ClientWebSocketResponse], None],
         logger: Logger = null_logger(),
         heartbeat: int = 40,
@@ -22,9 +22,9 @@ class WebsocketTransport:
         self.ws_url = url
         self.logger = logger
         self.heartbeat = heartbeat
-        self.message_handler = message_handler
-
+        self.on_message = on_message
         self.on_connected = on_connected
+
         self.ws: ClientWebSocketResponse | None = None
 
     def terminal_message(self, ws: ClientWebSocketResponse, msg: WSMessage) -> str:
@@ -47,7 +47,7 @@ class WebsocketTransport:
                     while True:
                         msg = await ws.receive()
                         if msg.type == WSMsgType.TEXT:
-                            self.message_handler(msg.data)
+                            self.on_message(msg.data)
                             count += 1
                             if count % 10 == 0:
                                 await sleep(0)

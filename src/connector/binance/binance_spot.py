@@ -1,15 +1,22 @@
 from typing import Any, Type
+from logging import Logger
 
+from connector.async_logger import null_logger
 from connector.base_classes import MarketType
 from connector.http_client import BaseHttpClient
-from connector.instrument import BaseInstrumentManager
-from connector.orderbook_service import BaseOrderbookService
-from connector.public_trade_service import BasePublicTradeService
+from connector.rate_limiter import LimitWindow, BaseRateLimiterHttpClient
+from connector.instrument import BaseInstrumentManager, Instrument
+from connector.kline_service import BaseKlineService
 
-from connector.binance.binance_base import BinanceBase, BinanceHttpClientBase, BinanceBaseInstrumentManager
-from connector.binance.binance_orderbook import BinancePartialOrderbookService
-from connector.binance.binance_public_trade import BinancePublicTradeService
-from connector.binance.constants import base_spot_url, spot_exchange_info_url, ws_spot_url
+from connector.binance.constants import SPOT_IP_WEIGHT_BUDGET, IP_WEIGHT_HEADER
+from connector.binance.binance_base import (
+    BinanceBase,
+    BinanceHttpClientBase,
+    BinanceBaseInstrumentManager,
+    BinanceBaseKlineService,
+    BinanceBasePublicRateLimiter,
+)
+from connector.binance.constants import base_spot_url, spot_exchange_info_url, ws_spot_url, spot_klines_url
 
 
 class BinanceSpotInstrumentManager(BinanceBaseInstrumentManager):
@@ -25,39 +32,48 @@ class BinanceSpotInstrumentManager(BinanceBaseInstrumentManager):
             "quoteAsset": "USDT",
         }
 
+    def make_instrument_from_instrument_info(self, instrument_info: dict[str, Any]) -> Instrument:
+        unify_symbol = instrument_info["baseAsset"] + instrument_info["quoteAsset"]
+
+        return Instrument(exchange_symbol=instrument_info["symbol"], unified_symbol=unify_symbol)
+
     async def update_leverage_brackets(self) -> None: ...
 
 
-class BinanceSpotPartialOrderbookService(BinancePartialOrderbookService):
+class BinanceSpotKlineService(BinanceBaseKlineService):
     @property
     def ws_url(self) -> str:
         return ws_spot_url
 
-    def get_channel(self, symbol: str) -> str:
-        return f"{symbol.lower()}@bookTicker"  # @depth<levels> OR @depth<levels>@500ms OR @depth<levels>@100ms
-
-    def handle_message(self, message: str) -> None:
-        # Fast path: full JSON parsing is too slow, parse only 'u' and 's' manually
-        pos = message.find('"u":')
-        if pos == -1:
-            return
-
-        pos = message.find('"s":')
-        if pos == -1:
-            return
-
-        s_start = message.find('"', pos + 4) + 1
-        s_end = message.find('"', s_start)
-        symbol = message[s_start:s_end]
-
-        orderbook = self[symbol]
-        orderbook.message = message
-
-
-class BinanceSpotPublicTradeService(BinancePublicTradeService):
     @property
-    def ws_url(self) -> str:
-        return ws_spot_url
+    def klines_url(self) -> str:
+        return base_spot_url + spot_klines_url
+
+    @property
+    def rest_limit(self) -> int:
+        return 1000
+
+
+class BinanceSpotPublicRateLimiter(BinanceBasePublicRateLimiter):
+    def __init__(
+        self,
+        *,
+        http_client: BaseHttpClient,
+        logger: Logger = null_logger(),
+    ) -> None:
+        limit_windows = [
+            LimitWindow(
+                weight_limit=SPOT_IP_WEIGHT_BUDGET,
+                window_seconds=60,
+                response_header=IP_WEIGHT_HEADER,
+            )
+        ]
+
+        super().__init__(
+            http_client=http_client,
+            limit_windows=limit_windows,
+            logger=logger,
+        )
 
 
 class BinanceSpot(BinanceBase):
@@ -70,13 +86,13 @@ class BinanceSpot(BinanceBase):
         return BinanceHttpClientBase
 
     @property
+    def public_http_client_type(self) -> Type[BaseRateLimiterHttpClient]:
+        return BinanceSpotPublicRateLimiter
+
+    @property
     def instrument_manager_type(self) -> Type[BaseInstrumentManager]:
         return BinanceSpotInstrumentManager
 
     @property
-    def orderbook_service_type(self) -> Type[BaseOrderbookService]:
-        return BinanceSpotPartialOrderbookService
-
-    @property
-    def public_trade_service_type(self) -> Type[BasePublicTradeService]:
-        return BinanceSpotPublicTradeService
+    def kline_service_type(self) -> Type[BaseKlineService]:
+        return BinanceSpotKlineService

@@ -4,7 +4,8 @@ from dataclasses import dataclass, field
 import asyncio
 import logging
 
-from connector.http_client import BaseHttpClient, HTTPMethod
+from connector.http_client import HTTPMethod
+from connector.rate_limiter import BaseRateLimiterHttpClient
 from connector.utils import traceback_error_str, validate_dict_by_dict
 from connector.async_logger import null_logger
 from connector.events import Event, InstrumentAddedEvent
@@ -45,25 +46,25 @@ class BaseInstrumentManager(ABC):
     def __init__(
         self,
         *,
-        http_client: BaseHttpClient,
+        http_client: BaseRateLimiterHttpClient,
         logger: logging.Logger = null_logger(),
         update_interval: int = 30,  # min
     ) -> None:
         self.http_client = http_client
         self.logger = logger
         self.update_interval = update_interval
-        self.on_instruments_added: set[asyncio.Queue[Event]] = set()
+        self.subscribers: set[asyncio.Queue[Event]] = set()
 
-        self._items: dict[str, Instrument] = {}
+        self.instruments: dict[str, Instrument] = {}
 
     def get(self, key: str, default: None = None) -> Instrument | None:
-        return self._items.get(key, default)
+        return self.instruments.get(key, default)
 
     def __getitem__(self, symbol: str) -> Instrument:
-        return self._items[symbol]
+        return self.instruments[symbol]
 
     def values(self):
-        return self._items.values()
+        return self.instruments.values()
 
     @property
     @abstractmethod
@@ -83,7 +84,8 @@ class BaseInstrumentManager(ABC):
     async def update_leverage_brackets(self) -> None: ...
 
     async def get_exchange_info(self) -> dict[str, Any]:
-        return await self.http_client.request(method=HTTPMethod.GET, url=self.exchange_info_url)
+        response = await self.http_client.request(method=HTTPMethod.GET, url=self.exchange_info_url)
+        return response.data
 
     async def fetch_instruments(self) -> dict[str, Instrument]:
         instruments: dict[str, Instrument] = {}
@@ -99,7 +101,7 @@ class BaseInstrumentManager(ABC):
         try:
             new_items = await self.fetch_instruments()
 
-            old_keys = set(self._items.keys())
+            old_keys = set(self.instruments.keys())
             new_keys = set(new_items.keys())
 
             added_keys = new_keys - old_keys
@@ -107,21 +109,21 @@ class BaseInstrumentManager(ABC):
             common_keys = old_keys & new_keys
 
             for key in common_keys:
-                self._items[key] = new_items[key]
+                self.instruments[key] = new_items[key]
 
             new_exchange_symbols: set[str] = set()
             for key in added_keys:
                 instrument = new_items[key]
-                self._items[key] = instrument
+                self.instruments[key] = instrument
                 new_exchange_symbols.add(instrument.exchange_symbol)
 
             removed_exchange_symbols: set[str] = set()
             for key in removed_keys:
-                instrument = self._items.pop(key)
+                instrument = self.instruments.pop(key)
                 removed_exchange_symbols.add(instrument.exchange_symbol)
 
             if new_exchange_symbols:
-                for queue in self.on_instruments_added:
+                for queue in self.subscribers:
                     queue.put_nowait(InstrumentAddedEvent(new_exchange_symbols))
                 if old_keys:
                     self.logger.info(f"new instruments added: {added_keys}")

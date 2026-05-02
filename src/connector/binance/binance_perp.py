@@ -1,17 +1,24 @@
 from typing import Any, Type
+from logging import Logger
 
+from connector.async_logger import null_logger
 from connector.base_classes import MarketType
 from connector.http_client import BaseHttpClient
+from connector.rate_limiter import BaseRateLimiterHttpClient, LimitWindow
 from connector.instrument import BaseInstrumentManager, Instrument, LeverageBracket
-from connector.public_trade_service import BasePublicTradeService
-from connector.orderbook_service import BaseOrderbookService
+from connector.kline_service import BaseKlineService
 from connector.http_client import HTTPMethod
-
 from connector.utils import float_or_none
-from connector.binance.binance_orderbook import BinancePartialOrderbookService
-from connector.binance.binance_public_trade import BinancePublicTradeService
-from connector.binance.binance_base import BinanceBase, BinanceBaseInstrumentManager, BinanceHttpClientBase
-from connector.binance.constants import base_perp_url, perp_exchange_info_url, ws_perp_url, perp_leverage_brackets_url
+
+from connector.binance.constants import PERP_IP_WEIGHT_BUDGET, IP_WEIGHT_HEADER
+from connector.binance.binance_base import (
+    BinanceBase,
+    BinanceBaseInstrumentManager,
+    BinanceHttpClientBase,
+    BinanceBaseKlineService,
+    BinanceBasePublicRateLimiter,
+)
+from connector.binance.constants import base_perp_url, perp_exchange_info_url, perp_klines_url, ws_perp_market_url, perp_leverage_brackets_url
 
 
 class BinancePerpInstrumentManager(BinanceBaseInstrumentManager):
@@ -28,10 +35,10 @@ class BinancePerpInstrumentManager(BinanceBaseInstrumentManager):
         }
 
     def make_instrument_from_instrument_info(self, instrument_info: dict[str, Any]) -> Instrument:
-        filters: dict[str, dict[str, Any]] = {f["filterType"]: f for f in instrument_info["filters"]}
-        price_f = filters.get("PRICE_FILTER", {})
-        lot_f = filters.get("MARKET_LOT_SIZE", {})
-        notional_f = filters.get("MIN_NOTIONAL", {})
+        filters = {f["filterType"]: f for f in instrument_info["filters"]}
+        price_f: dict[str, Any] = filters.get("PRICE_FILTER", {})
+        lot_f: dict[str, Any] = filters.get("MARKET_LOT_SIZE", {})
+        notional_f: dict[str, Any] = filters.get("MIN_NOTIONAL", {})
 
         return Instrument(
             exchange_symbol=instrument_info["symbol"],
@@ -61,11 +68,12 @@ class BinancePerpInstrumentManager(BinanceBaseInstrumentManager):
                 cumulative_amount=cumulative_amount,
             )
 
-        data: list[dict[str, Any]] = await self.http_client.request(
+        response = await self.http_client.request(
             method=HTTPMethod.GET,
             url=base_perp_url + perp_leverage_brackets_url,
             is_auth_required=True,
         )
+        data: list[dict[str, Any]] = response.data
 
         for symbol_data in data:
             symbol: str = symbol_data["symbol"]
@@ -74,42 +82,40 @@ class BinancePerpInstrumentManager(BinanceBaseInstrumentManager):
                 instrument.leverage_brackets = tuple(bracket_from_dict(data) for data in symbol_data["brackets"])
 
 
-class BinancePerpPartialOrderbookService(BinancePartialOrderbookService):
+class BinancePerpKlineService(BinanceBaseKlineService):
     @property
     def ws_url(self) -> str:
-        return ws_perp_url
+        return ws_perp_market_url
 
-    def get_channel(self, symbol: str) -> str:
-        return f"{symbol.lower()}@depth20"  # @depth<levels> OR @depth<levels>@500ms OR @depth<levels>@100ms
-
-    def handle_message(self, message: str) -> None:
-        # Fast path: full JSON parsing is too slow, parse only 'e' and 's' manually
-        pos = message.find('"e":')
-        if pos == -1:
-            return
-        e_start = message.find('"', pos + 4) + 1
-        e_end = message.find('"', e_start)
-        event_type = message[e_start:e_end]
-
-        if event_type != "depthUpdate":
-            return
-
-        pos = message.find('"s":')
-        if pos == -1:
-            return
-
-        s_start = message.find('"', pos + 4) + 1
-        s_end = message.find('"', s_start)
-        symbol = message[s_start:s_end]
-
-        orderbook = self[symbol]
-        orderbook.message = message
-
-
-class BinancePerpPublicTradeService(BinancePublicTradeService):
     @property
-    def ws_url(self) -> str:
-        return ws_perp_url
+    def klines_url(self) -> str:
+        return base_perp_url + perp_klines_url
+
+    @property
+    def rest_limit(self) -> int:
+        return 499
+
+
+class BinancePerpPublicRateLimiter(BinanceBasePublicRateLimiter):
+    def __init__(
+        self,
+        *,
+        http_client: BaseHttpClient,
+        logger: Logger = null_logger(),
+    ) -> None:
+        limit_windows = [
+            LimitWindow(
+                weight_limit=PERP_IP_WEIGHT_BUDGET,
+                window_seconds=60,
+                response_header=IP_WEIGHT_HEADER,
+            )
+        ]
+
+        super().__init__(
+            http_client=http_client,
+            limit_windows=limit_windows,
+            logger=logger,
+        )
 
 
 class BinancePerp(BinanceBase):
@@ -122,13 +128,13 @@ class BinancePerp(BinanceBase):
         return BinanceHttpClientBase
 
     @property
+    def public_http_client_type(self) -> Type[BaseRateLimiterHttpClient]:
+        return BinancePerpPublicRateLimiter
+
+    @property
     def instrument_manager_type(self) -> Type[BaseInstrumentManager]:
         return BinancePerpInstrumentManager
 
     @property
-    def orderbook_service_type(self) -> Type[BaseOrderbookService]:
-        return BinancePerpPartialOrderbookService
-
-    @property
-    def public_trade_service_type(self) -> Type[BasePublicTradeService]:
-        return BinancePerpPublicTradeService
+    def kline_service_type(self) -> Type[BaseKlineService]:
+        return BinancePerpKlineService

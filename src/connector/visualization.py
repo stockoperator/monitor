@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
-from connector.public_trade_service import PublicTimeFrameTrades, TradesContainer
+from connector.kline_service import Klines, KlinesContainer
 from connector.connector import BaseConnector
 
 
@@ -38,17 +38,17 @@ def plot_price_and_cumulative_delta_notional(
     Для feature='1s'/'1m'/'1h' используется delta_volumes.
     """
 
-    trade_container: TradesContainer = connector.trade_service[symbol]
-    public_trades: PublicTimeFrameTrades = getattr(trade_container, f"public_trades_{feature}")
+    trade_container: KlinesContainer = connector.kline_service[symbol]
+    klines: Klines = getattr(trade_container, f"klines_{feature}")
     connector_name = connector.__class__.__name__
 
-    if len(public_trades) == 0:
+    if len(klines) == 0:
         print(f"{connector_name} {symbol}: буфер пуст")
         return
 
     left_ms = int(datetime.fromisoformat(from_date_utc).replace(tzinfo=timezone.utc).timestamp() * 1000) if from_date_utc else 0
 
-    ts, p, _, d = public_trades.ordered()
+    ts, p, _, d = klines.ordered()
 
     i = np.searchsorted(ts, left_ms, side="left")
     ts, p, d = ts[i:], p[i:], d[i:]
@@ -57,7 +57,7 @@ def plot_price_and_cumulative_delta_notional(
         print(f"{connector_name} {symbol}: после фильтра данных нет")
         return
 
-    cd = np.cumsum(d * p, dtype=np.float64)
+    cd = np.cumsum(d, dtype=np.float64)
 
     x = ts.astype("datetime64[ms]")
 

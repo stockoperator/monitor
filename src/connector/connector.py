@@ -7,10 +7,10 @@ import logging
 
 from connector.async_logger import null_logger
 from connector.http_client import BaseHttpClient
+from connector.rate_limiter import BaseRateLimiterHttpClient
 from connector.base_classes import ExchangeName, MarketType
 from connector.instrument import BaseInstrumentManager
-from connector.orderbook_service import BaseOrderbookService
-from connector.public_trade_service import BasePublicTradeService
+from connector.kline_service import BaseKlineService
 
 
 class BaseConnector(ABC):
@@ -29,7 +29,7 @@ class BaseConnector(ABC):
 
         self.logger = logger.getChild(self.__class__.__name__)
 
-        self.http_client = self.http_client_type(
+        http_client = self.http_client_type(
             session=session,
             api_key=self.api_key,
             secret_key=self.secret_key,
@@ -37,20 +37,20 @@ class BaseConnector(ABC):
             logger=self.logger.getChild("http"),
         )
 
-        self.instrument_manager = self.instrument_manager_type(
-            http_client=self.http_client,
-            logger=self.logger.getChild("instruments"),
-        )
-        self.orderbook_service = self.orderbook_service_type(
-            session=session,
-            instruments=self.instrument_manager,
-            logger=self.logger.getChild("orderbook"),
+        self.public_http_client = self.public_http_client_type(
+            http_client=http_client,
         )
 
-        self.trade_service = self.public_trade_service_type(
+        self.instrument_manager = self.instrument_manager_type(
+            http_client=self.public_http_client,
+            logger=self.logger.getChild("instruments"),
+        )
+
+        self.kline_service = self.kline_service_type(
             session=session,
-            instruments=self.instrument_manager,
-            logger=self.logger.getChild("trade_container"),
+            http_client=self.public_http_client,
+            instrument_manager=self.instrument_manager,
+            logger=self.logger.getChild("klines"),
         )
 
     @property
@@ -59,15 +59,15 @@ class BaseConnector(ABC):
 
     @property
     @abstractmethod
+    def public_http_client_type(self) -> Type[BaseRateLimiterHttpClient]: ...
+
+    @property
+    @abstractmethod
     def instrument_manager_type(self) -> Type[BaseInstrumentManager]: ...
 
     @property
     @abstractmethod
-    def orderbook_service_type(self) -> Type[BaseOrderbookService]: ...
-
-    @property
-    @abstractmethod
-    def public_trade_service_type(self) -> Type[BasePublicTradeService]: ...
+    def kline_service_type(self) -> Type[BaseKlineService]: ...
 
     @property
     @abstractmethod
@@ -82,5 +82,4 @@ class BaseConnector(ABC):
 
         async with asyncio.TaskGroup() as tg:
             tg.create_task(self.instrument_manager.update_instruments_loop())
-            tg.create_task(self.trade_service.run())
-            # tg.create_task(self.orderbooks.run())
+            tg.create_task(self.kline_service.run())
