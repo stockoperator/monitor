@@ -9,7 +9,7 @@ InstrumentsAddedHandlersType = set[InstrumentsAddedHandlerType]
 
 class MarketType(Enum):
     SPOT = "spot"
-    PERPETUAL = "perpetual"
+    PERP = "perp"
 
 
 class ExchangeName(Enum):

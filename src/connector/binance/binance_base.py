@@ -15,6 +15,18 @@ from connector.instrument import BaseInstrumentManager
 from connector.utils import traceback_error_str
 
 
+class BinanceApiError(RuntimeError):
+    pass
+
+
+def raise_for_status(response: HttpResponse, context: str) -> None:
+    """Raise BinanceApiError on non-200. Surfaces Binance's `code`/`msg` from the payload."""
+    if response.status == 200:
+        return
+    data: dict[str, Any] = response.data
+    raise BinanceApiError(f"{context}: status: {response.status}, code: {data.get('code')}, msg: {data.get('msg')!r}")
+
+
 class BinanceHttpClientBase(BaseHttpClient):
     def _sign(self, message: str) -> str:
         return hmac.new(key=self.secret_key.encode("utf-8"), msg=message.encode("utf-8"), digestmod="sha256").hexdigest()
@@ -31,16 +43,10 @@ class BinanceHttpClientBase(BaseHttpClient):
             query_str = "&".join(f"{k}={v}" for k, v in params.items())
             params["signature"] = self._sign(query_str)
 
-        # t1 = time.thread_time()
         async with self.session.request(method=method.value, url=url, params=params, headers=headers) as response:
-            # t2 = time.thread_time()
             r = await response.read()
-            # t3 = time.thread_time()
             data = orjson.loads(r)
-            # http_time = (t2 - t1) * 1000
-            # read_time = (t3 - t2) * 1000
-            # json_time = (time.thread_time() - t3) * 1000
-            # self.logger.info(f"http: {http_time:.1f} ms, read: {read_time:.1f} ms, json: {json_time:.1f}")
+
             return HttpResponse(
                 data=data,
                 status=response.status,
@@ -189,14 +195,14 @@ class BinanceBaseKlineService(BaseKlineService, ABC):
 
 class BinanceBasePublicRateLimiter(BaseRateLimiterHttpClient):
     def update_limits(self, response: HttpResponse) -> None:
-        for w in self.limit_windows:
-            raw = response.headers.get(w.response_header)
+        for window in self.limit_windows:
+            raw = response.headers.get(window.response_header)
             if raw:
-                w.update(int(raw))
+                window.update(int(raw))
 
         if response.status in (418, 429):
             wait_sec = float(response.headers.get("Retry-After", 0))
             self._retry_after = time.monotonic() + wait_sec
-            for w in self.limit_windows:
-                w.update(w.weight_limit)
-            self._logger.warning("binance rate limit hit status=%d freeze=%.1fs", response.status, wait_sec)
+            for window in self.limit_windows:
+                window.update(window.weight_limit)
+            self._logger.error("binance rate limit hit status: %d, freeze: %.1fs", response.status, wait_sec)

@@ -6,7 +6,7 @@ import logging
 
 from connector.http_client import HTTPMethod
 from connector.rate_limiter import BaseRateLimiterHttpClient
-from connector.utils import traceback_error_str, validate_dict_by_dict
+from connector.utils import run_periodic, validate_dict_by_dict
 from connector.async_logger import null_logger
 from connector.events import Event, InstrumentAddedEvent
 
@@ -39,7 +39,7 @@ class Instrument:
             if bracket.notional_floor <= notional < bracket.notional_cap:
                 return bracket
 
-        raise ValueError(f"No leverage bracket found for {self.unified_symbol}, notional={notional}")
+        raise ValueError(f"No leverage bracket found for {self.unified_symbol}, notional: {notional}")
 
 
 class BaseInstrumentManager(ABC):
@@ -97,48 +97,38 @@ class BaseInstrumentManager(ABC):
                 instruments[instrument.unified_symbol] = instrument
         return instruments
 
+    def publish(self, event: Event) -> None:
+        for queue in self.subscribers:
+            queue.put_nowait(event)
+
     async def update_instruments(self) -> None:
-        try:
-            new_items = await self.fetch_instruments()
+        new_items = await self.fetch_instruments()
 
-            old_keys = set(self.instruments.keys())
-            new_keys = set(new_items.keys())
+        old_keys = set(self.instruments.keys())
+        new_keys = set(new_items.keys())
 
-            added_keys = new_keys - old_keys
-            removed_keys = old_keys - new_keys
-            common_keys = old_keys & new_keys
+        added_keys = new_keys - old_keys
+        removed_keys = old_keys - new_keys
+        common_keys = old_keys & new_keys
 
-            for key in common_keys:
-                self.instruments[key] = new_items[key]
+        for key in common_keys:
+            self.instruments[key] = new_items[key]
 
-            new_exchange_symbols: set[str] = set()
-            for key in added_keys:
-                instrument = new_items[key]
-                self.instruments[key] = instrument
-                new_exchange_symbols.add(instrument.exchange_symbol)
+        new_exchange_symbols: set[str] = set()
+        for key in added_keys:
+            instrument = new_items[key]
+            self.instruments[key] = instrument
+            new_exchange_symbols.add(instrument.exchange_symbol)
 
-            removed_exchange_symbols: set[str] = set()
-            for key in removed_keys:
-                instrument = self.instruments.pop(key)
-                removed_exchange_symbols.add(instrument.exchange_symbol)
+        for key in removed_keys:
+            self.instruments.pop(key)
 
-            if new_exchange_symbols:
-                for queue in self.subscribers:
-                    queue.put_nowait(InstrumentAddedEvent(new_exchange_symbols))
-                if old_keys:
-                    self.logger.info(f"new instruments added: {added_keys}")
+        if new_exchange_symbols:
+            self.publish(InstrumentAddedEvent(new_exchange_symbols))
+            if old_keys:
+                self.logger.info(f"new instruments added: {added_keys}")
 
-            await self.update_leverage_brackets()
+        await self.update_leverage_brackets()
 
-        except NotImplementedError:
-            raise
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            self.logger.error(traceback_error_str())
-            await asyncio.sleep(5)
-
-    async def update_instruments_loop(self):
-        while True:
-            await asyncio.sleep(60 * self.update_interval)
-            await self.update_instruments()
+    async def update_instruments_loop(self) -> None:
+        await run_periodic("update-instruments", 60 * self.update_interval, self.update_instruments, self.logger)

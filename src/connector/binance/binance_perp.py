@@ -1,6 +1,7 @@
 from typing import Any, Type
 from logging import Logger
 
+from connector.account_service import BaseAccountService
 from connector.async_logger import null_logger
 from connector.base_classes import MarketType
 from connector.http_client import BaseHttpClient
@@ -10,7 +11,16 @@ from connector.kline_service import BaseKlineService
 from connector.http_client import HTTPMethod
 from connector.utils import float_or_none
 
-from connector.binance.constants import PERP_IP_WEIGHT_BUDGET, IP_WEIGHT_HEADER
+from connector.binance.binance_account import BinancePerpAccountService
+from connector.binance.constants import (
+    PERP_IP_WEIGHT_BUDGET,
+    IP_WEIGHT_HEADER,
+    ORDER_10S_HEADER,
+    PERP_ORDER_1M_HEADER,
+    PERP_ORDER_10S_BUDGET,
+    PERP_ORDER_1M_BUDGET,
+)
+
 from connector.binance.binance_base import (
     BinanceBase,
     BinanceBaseInstrumentManager,
@@ -18,7 +28,13 @@ from connector.binance.binance_base import (
     BinanceBaseKlineService,
     BinanceBasePublicRateLimiter,
 )
-from connector.binance.constants import base_perp_url, perp_exchange_info_url, perp_klines_url, ws_perp_market_url, perp_leverage_brackets_url
+from connector.binance.constants import (
+    base_perp_url,
+    perp_exchange_info_url,
+    perp_klines_url,
+    ws_perp_market_url,
+    perp_leverage_brackets_url,
+)
 
 
 class BinancePerpInstrumentManager(BinanceBaseInstrumentManager):
@@ -118,10 +134,37 @@ class BinancePerpPublicRateLimiter(BinanceBasePublicRateLimiter):
         )
 
 
+class BinancePerpOrderRateLimiter(BinanceBasePublicRateLimiter):
+    def __init__(
+        self,
+        *,
+        http_client: BaseHttpClient,
+        logger: Logger = null_logger(),
+    ) -> None:
+        limit_windows = [
+            LimitWindow(
+                weight_limit=PERP_ORDER_10S_BUDGET,
+                window_seconds=10,
+                response_header=ORDER_10S_HEADER,
+            ),
+            LimitWindow(
+                weight_limit=PERP_ORDER_1M_BUDGET,
+                window_seconds=60,
+                response_header=PERP_ORDER_1M_HEADER,
+            ),
+        ]
+
+        super().__init__(
+            http_client=http_client,
+            limit_windows=limit_windows,
+            logger=logger,
+        )
+
+
 class BinancePerp(BinanceBase):
     @property
     def market_type(self) -> MarketType:
-        return MarketType.PERPETUAL
+        return MarketType.PERP
 
     @property
     def http_client_type(self) -> Type[BaseHttpClient]:
@@ -132,9 +175,17 @@ class BinancePerp(BinanceBase):
         return BinancePerpPublicRateLimiter
 
     @property
+    def order_http_client_type(self) -> Type[BaseRateLimiterHttpClient]:
+        return BinancePerpOrderRateLimiter
+
+    @property
     def instrument_manager_type(self) -> Type[BaseInstrumentManager]:
         return BinancePerpInstrumentManager
 
     @property
     def kline_service_type(self) -> Type[BaseKlineService]:
         return BinancePerpKlineService
+
+    @property
+    def account_service_type(self) -> Type[BaseAccountService] | None:
+        return BinancePerpAccountService

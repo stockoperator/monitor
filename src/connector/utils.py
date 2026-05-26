@@ -1,12 +1,33 @@
 import sys
 import traceback
 import os
-from typing import Any
+import asyncio
+from logging import Logger
+from typing import Any, Awaitable, Callable
 import re
 import time
 import gc
 
 __re_unify_pattern: re.Pattern[str] = re.compile(r"[^A-Za-z0-9]")
+
+
+async def run_periodic(
+    name: str,
+    interval: float,
+    action: Callable[[], Awaitable[None]],
+    logger: Logger,
+    retry_after_fail: float = 5.0,
+) -> None:
+    """Sleep, run, log+sleep on failure, repeat. `CancelledError` always propagates."""
+    while True:
+        try:
+            await asyncio.sleep(interval)
+            await action()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.error(f"[{name}] {traceback_error_str()}")
+            await asyncio.sleep(retry_after_fail)
 
 
 def traceback_error_str() -> str:

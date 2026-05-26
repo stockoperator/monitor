@@ -4,6 +4,7 @@ from aiohttp import ClientSession
 from typing import Type
 import os
 import logging
+from pathlib import Path
 
 from connector.async_logger import null_logger
 from connector.http_client import BaseHttpClient
@@ -11,6 +12,8 @@ from connector.rate_limiter import BaseRateLimiterHttpClient
 from connector.base_classes import ExchangeName, MarketType
 from connector.instrument import BaseInstrumentManager
 from connector.kline_service import BaseKlineService
+from connector.account_service import BaseAccountService
+from connector.utils import traceback_error_str
 
 
 class BaseConnector(ABC):
@@ -41,6 +44,10 @@ class BaseConnector(ABC):
             http_client=http_client,
         )
 
+        self.order_http_client = self.order_http_client_type(
+            http_client=http_client,
+        )
+
         self.instrument_manager = self.instrument_manager_type(
             http_client=self.public_http_client,
             logger=self.logger.getChild("instruments"),
@@ -53,6 +60,17 @@ class BaseConnector(ABC):
             logger=self.logger.getChild("klines"),
         )
 
+        if self.account_service_type:
+            self.account_service = self.account_service_type(
+                session=session,
+                logger=self.logger.getChild("account"),
+                state_path=Path("data") / f"{self.name.value}_{self.market_type.value}.json",
+                http_client=self.public_http_client,
+                order_http_client=self.order_http_client,
+            )
+        else:
+            self.account_service = None
+
     @property
     @abstractmethod
     def http_client_type(self) -> Type[BaseHttpClient]: ...
@@ -60,6 +78,10 @@ class BaseConnector(ABC):
     @property
     @abstractmethod
     def public_http_client_type(self) -> Type[BaseRateLimiterHttpClient]: ...
+
+    @property
+    @abstractmethod
+    def order_http_client_type(self) -> Type[BaseRateLimiterHttpClient]: ...
 
     @property
     @abstractmethod
@@ -71,6 +93,10 @@ class BaseConnector(ABC):
 
     @property
     @abstractmethod
+    def account_service_type(self) -> Type[BaseAccountService] | None: ...
+
+    @property
+    @abstractmethod
     def name(self) -> ExchangeName: ...
 
     @property
@@ -78,8 +104,15 @@ class BaseConnector(ABC):
     def market_type(self) -> MarketType: ...
 
     async def run(self) -> None:
-        await self.instrument_manager.update_instruments()
+        try:
+            await self.instrument_manager.update_instruments()
 
-        async with asyncio.TaskGroup() as tg:
-            tg.create_task(self.instrument_manager.update_instruments_loop())
-            tg.create_task(self.kline_service.run())
+            async with asyncio.TaskGroup() as tg:
+                tg.create_task(self.instrument_manager.update_instruments_loop())
+                tg.create_task(self.kline_service.run())
+                if self.account_service is not None:
+                    tg.create_task(self.account_service.run())
+        except* asyncio.CancelledError:
+            self.logger.info("Монитор остановлен (CancelledError)")
+        except* Exception:
+            self.logger.error(traceback_error_str())

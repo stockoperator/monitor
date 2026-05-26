@@ -24,7 +24,6 @@ class BaseDataService(ABC):
         bytes_per_ws_message: int = 1000,
     ) -> None:
         self.logger = logger
-        self.session = session
         self.http_client = http_client
         self.bytes_per_ws_message = bytes_per_ws_message
 

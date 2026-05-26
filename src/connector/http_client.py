@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Mapping
 from enum import Enum
-from aiohttp import ClientSession, TCPConnector, ClientTimeout
+from aiohttp import ClientSession, ClientTimeout
 import logging
 
 from connector.async_logger import null_logger
@@ -23,10 +23,9 @@ class HttpResponse:
         self.headers = headers
 
 
-def make_session(*, total_timeout: float = 10.0, limit_per_host: int = 100) -> ClientSession:
-    connector = TCPConnector(keepalive_timeout=30, limit_per_host=limit_per_host, ttl_dns_cache=300)
+def make_session(*, total_timeout: float = 30.0) -> ClientSession:
     timeout = ClientTimeout(total=total_timeout)
-    return ClientSession(connector=connector, timeout=timeout)
+    return ClientSession(timeout=timeout)
 
 
 class BaseHttpClient(ABC):

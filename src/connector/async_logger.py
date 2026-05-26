@@ -29,7 +29,7 @@ def make_async_logger(
     logger.addHandler(queue_handler)
 
     rotating_handler = RotatingFileHandler(log_file, maxBytes=max_bytes, backupCount=backup_count)
-    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(funcName)s: %(message)s")
     rotating_handler.setFormatter(formatter)
 
     listener = QueueListener(log_queue, rotating_handler, respect_handler_level=True)

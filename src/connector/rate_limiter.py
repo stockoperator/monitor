@@ -19,9 +19,7 @@ class LimitWindow:
     safety_margin: float = 0.10
 
     def is_blocking(self) -> bool:
-        return int(self.last_request_time / self.window_seconds) == int(time.time() / self.window_seconds) and (
-            self.used_weight >= (1 - self.safety_margin) * self.weight_limit
-        )
+        return int(self.last_request_time / self.window_seconds) == int(time.time() / self.window_seconds) and (self.used_weight >= (1 - self.safety_margin) * self.weight_limit)
 
     def update(self, used_weight: int) -> None:
         self.used_weight = used_weight
@@ -51,11 +49,9 @@ class BaseRateLimiterHttpClient(ABC):
     def target_concurrency(self) -> int:
         max_concurrency = self._max_concurrency
         for limit_window in self.limit_windows:
-            if limit_window.used_weight == 0:
-                return 1
-            else:
+            if limit_window.used_weight > 0:
                 max_concurrency = min(max_concurrency, self._max_concurrency * (1 - limit_window.used_weight / limit_window.weight_limit))
-        return int(max_concurrency)
+        return int(max(1, max_concurrency))
 
     def freeze_remaining(self) -> float | None:
         now = time.monotonic()

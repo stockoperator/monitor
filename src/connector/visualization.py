@@ -6,15 +6,15 @@ from matplotlib.ticker import FuncFormatter
 from connector.kline_service import Klines, KlinesContainer
 from connector.connector import BaseConnector
 
-
 plt.rcParams["font.sans-serif"] = ["Noto Sans CJK SC", "WenQuanYi Zen Hei"]
 plt.rcParams["axes.unicode_minus"] = False  # чтобы минус нормально показывался
 
 PRICE_COLOR = "tab:blue"
 DELTA_COLOR = "tab:red"
+VOLUME_COLOR = "tab:blue"
 
 
-def _delta_axis_formatter(value: float, _pos: int) -> str:
+def _axis_formatter(value: float, _pos: int) -> str:
     abs_value = abs(value)
     if abs_value >= 1_000_000:
         return f"{value / 1_000_000:.1f}M"
@@ -48,10 +48,10 @@ def plot_price_and_cumulative_delta_notional(
 
     left_ms = int(datetime.fromisoformat(from_date_utc).replace(tzinfo=timezone.utc).timestamp() * 1000) if from_date_utc else 0
 
-    ts, p, _, d = klines.ordered()
+    ts, p, v, d = klines.ordered()
 
     i = np.searchsorted(ts, left_ms, side="left")
-    ts, p, d = ts[i:], p[i:], d[i:]
+    ts, p, v, d = ts[i:], p[i:], v[i:], d[i:]
 
     if ts.size == 0:
         print(f"{connector_name} {symbol}: после фильтра данных нет")
@@ -61,7 +61,7 @@ def plot_price_and_cumulative_delta_notional(
 
     x = ts.astype("datetime64[ms]")
 
-    fig, ax1 = plt.subplots(figsize=figsize)  # type: ignore
+    fig, (ax1, ax3) = plt.subplots(2, 1, figsize=figsize, sharex=True, gridspec_kw={"height_ratios": (3, 1)})  # type: ignore
 
     ax1.plot(x, p, linewidth=1.0, color=PRICE_COLOR)  # type: ignore
 
@@ -79,11 +79,33 @@ def plot_price_and_cumulative_delta_notional(
 
     ax2.set_ylabel("cumulative delta, usd", color=DELTA_COLOR)  # type: ignore
     ax2.tick_params(axis="y", labelcolor=DELTA_COLOR)  # type: ignore
-    ax2.yaxis.set_major_formatter(FuncFormatter(_delta_axis_formatter))
+    ax2.yaxis.set_major_formatter(FuncFormatter(_axis_formatter))
 
     last_cd = round(cd[-1], 10)
     ax2.axhline(last_cd, linestyle="--", alpha=0.35, color=DELTA_COLOR)  # type: ignore
 
+    # -----------------------------
+    # Нижний график: volume
+    # -----------------------------
+    if ts.size > 1:
+        step_ms = int(np.median(np.diff(ts)))
+    else:
+        step_ms = 1000
+
+    bar_width = np.timedelta64(max(1, int(step_ms * 0.8)), "ms")
+
+    if len(x) > 1:
+        ax3.fill_between(x, v, 0.0, step="mid", color=VOLUME_COLOR, linewidth=0.0)  # type: ignore
+    else:
+        ax3.bar(x, v, width=bar_width, color=VOLUME_COLOR, linewidth=0.0, align="center")  # type: ignore
+    ax3.set_ylabel("volume, usd")  # type: ignore
+    ax3.set_xlabel(f"time {step_ms}")  # type: ignore
+    ax3.grid(True, linestyle="--", alpha=0.5)  # type: ignore
+    ax3.yaxis.set_major_formatter(FuncFormatter(_axis_formatter))
+
+    # -----------------------------
+    # Общие подписи
+    # -----------------------------
     start_x = x[0]
     end_x = x[-1]
     start_str = np.datetime_as_string(start_x, unit="s").replace("T", " ")  # type: ignore
