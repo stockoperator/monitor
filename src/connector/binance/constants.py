@@ -26,6 +26,10 @@ perp_position_risk_url = "v2/positionRisk"
 perp_balance_url = "v2/balance"
 perp_position_mode = "v1/positionSide/dual"
 
+# all-market mark price + funding stream: pushes funding rate (`r`) and next funding time (`T`)
+# for every perp instrument in a single subscription. No `@1s` suffix → 3s cadence (funding is slow-moving)
+perp_mark_price_all_channel = "!markPrice@arr"
+
 SPOT_IP_WEIGHT_BUDGET = 6000
 PERP_IP_WEIGHT_BUDGET = 2400
 IP_WEIGHT_HEADER = "X-MBX-USED-WEIGHT-1M"

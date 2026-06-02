@@ -1,5 +1,6 @@
-from typing import Any, Type
+from typing import Any, Type, cast
 from logging import Logger
+import orjson
 
 from connector.account_service import BaseAccountService
 from connector.async_logger import null_logger
@@ -8,7 +9,9 @@ from connector.http_client import BaseHttpClient
 from connector.rate_limiter import BaseRateLimiterHttpClient, LimitWindow
 from connector.instrument import BaseInstrumentManager, Instrument, LeverageBracket
 from connector.kline_service import BaseKlineService
+from connector.funding_service import BaseFundingService
 from connector.http_client import HTTPMethod
+from connector.trading_types import FundingRate
 from connector.utils import float_or_none
 
 from connector.binance.binance_account import BinancePerpAccountService
@@ -34,6 +37,7 @@ from connector.binance.constants import (
     perp_klines_url,
     ws_perp_market_url,
     perp_leverage_brackets_url,
+    perp_mark_price_all_channel,
 )
 
 
@@ -112,6 +116,44 @@ class BinancePerpKlineService(BinanceBaseKlineService):
         return 499
 
 
+class BinancePerpFundingService(BaseFundingService):
+    @property
+    def ws_url(self) -> str:
+        return ws_perp_market_url
+
+    def get_channel(self, symbol: str) -> str:
+        # required by BaseDataService for per-symbol fan-out, but unused here: this service
+        # subscribes to ONE all-market stream (see subscribe_all), never per-symbol channels
+        raise NotImplementedError("funding uses the all-market stream, not per-symbol channels")
+
+    def make_subscribe_message(self, channel_batch: list[str]) -> bytes:
+        return orjson.dumps({"method": "SUBSCRIBE", "params": channel_batch})
+
+    async def subscribe_all(self) -> None:
+        # the all-market stream already carries every instrument — one subscription, no per-symbol fan-out
+        await self.subscribe_channels([perp_mark_price_all_channel])
+
+    async def subscribe(self, instruments: set[str]) -> None:
+        # newly listed instruments show up in the all-market stream automatically; nothing to do
+        return
+
+    def handle_message(self, message: str) -> None:
+        data: Any = orjson.loads(message)
+        if not isinstance(data, list):
+            return  # subscribe ack / control frame
+
+        for item in cast(list[dict[str, Any]], data):
+            rate = item.get("r")
+            symbol = item["s"]
+            if not rate:
+                continue
+            self.funding[symbol] = FundingRate(
+                symbol=item["s"],
+                rate=float(rate),
+                next_time=int(item["T"]),
+            )
+
+
 class BinancePerpPublicRateLimiter(BinanceBasePublicRateLimiter):
     def __init__(
         self,
@@ -185,6 +227,10 @@ class BinancePerp(BinanceBase):
     @property
     def kline_service_type(self) -> Type[BaseKlineService]:
         return BinancePerpKlineService
+
+    @property
+    def funding_service_type(self) -> Type[BaseFundingService] | None:
+        return BinancePerpFundingService
 
     @property
     def account_service_type(self) -> Type[BaseAccountService] | None:

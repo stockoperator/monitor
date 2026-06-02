@@ -12,6 +12,7 @@ from connector.rate_limiter import BaseRateLimiterHttpClient
 from connector.base_classes import ExchangeName, MarketType
 from connector.instrument import BaseInstrumentManager
 from connector.kline_service import BaseKlineService
+from connector.funding_service import BaseFundingService
 from connector.account_service import BaseAccountService
 from connector.utils import traceback_error_str
 
@@ -60,6 +61,16 @@ class BaseConnector(ABC):
             logger=self.logger.getChild("klines"),
         )
 
+        if self.funding_service_type:
+            self.funding_service = self.funding_service_type(
+                session=session,
+                http_client=self.public_http_client,
+                instrument_manager=self.instrument_manager,
+                logger=self.logger.getChild("funding"),
+            )
+        else:
+            self.funding_service = None
+
         if self.account_service_type:
             self.account_service = self.account_service_type(
                 session=session,
@@ -92,6 +103,10 @@ class BaseConnector(ABC):
     def kline_service_type(self) -> Type[BaseKlineService]: ...
 
     @property
+    def funding_service_type(self) -> Type[BaseFundingService] | None:
+        return None
+
+    @property
     @abstractmethod
     def account_service_type(self) -> Type[BaseAccountService] | None: ...
 
@@ -110,6 +125,8 @@ class BaseConnector(ABC):
             async with asyncio.TaskGroup() as tg:
                 tg.create_task(self.instrument_manager.update_instruments_loop())
                 tg.create_task(self.kline_service.run())
+                if self.funding_service is not None:
+                    tg.create_task(self.funding_service.run())
                 if self.account_service is not None:
                     tg.create_task(self.account_service.run())
         except* asyncio.CancelledError:

@@ -65,7 +65,6 @@ def plot_price_and_cumulative_delta_notional(
 
     ax1.plot(x, p, linewidth=1.0, color=PRICE_COLOR)  # type: ignore
 
-    ax1.set_xlabel("time")  # type: ignore
     ax1.set_ylabel("price, usd", color=PRICE_COLOR)  # type: ignore
     ax1.tick_params(axis="y", labelcolor=PRICE_COLOR)  # type: ignore
     ax1.grid(True, linestyle="--", alpha=0.5)  # type: ignore
@@ -99,7 +98,7 @@ def plot_price_and_cumulative_delta_notional(
     else:
         ax3.bar(x, v, width=bar_width, color=VOLUME_COLOR, linewidth=0.0, align="center")  # type: ignore
     ax3.set_ylabel("volume, usd")  # type: ignore
-    ax3.set_xlabel(f"time {step_ms}")  # type: ignore
+    ax3.set_xlabel("time")  # type: ignore
     ax3.grid(True, linestyle="--", alpha=0.5)  # type: ignore
     ax3.yaxis.set_major_formatter(FuncFormatter(_axis_formatter))
 
@@ -112,7 +111,12 @@ def plot_price_and_cumulative_delta_notional(
     end_str = np.datetime_as_string(end_x, unit="s").replace("T", " ")  # type: ignore
 
     points_count = x.size
-    ax1.set_title(f"{connector_name} | {symbol} | tf: {feature} | {start_str} - {end_str} | points: {points_count} | price: {last_price}")  # type: ignore
+    fr = ""
+    if connector.funding_service:
+        funding_rate = connector.funding_service[symbol]
+        if funding_rate and funding_rate.rate:
+            fr = f" | fr: {funding_rate.rate*100:.1f}%"
+    ax1.set_title(f"{connector_name} | {symbol} | tf: {feature} | {start_str} - {end_str} | points: {points_count} | price: {last_price}{fr}")  # type: ignore
 
     fig.autofmt_xdate()
     fig.tight_layout()

@@ -97,6 +97,18 @@ class Order:
 
 
 @dataclass(kw_only=True, slots=True)
+class FundingRate:
+    """Upcoming funding for a perp position: the rate that will be applied at `next_time`.
+
+    Transient market data (not persisted) — refreshed periodically from premiumIndex.
+    """
+
+    symbol: str  # unified
+    rate: float  # signed fraction, e.g. 0.0001 == 0.01% (long pays short when positive)
+    next_time: int  # ms epoch of the next funding settlement
+
+
+@dataclass(kw_only=True, slots=True)
 class Position:
     symbol: str  # unified
     qty: float  # signed: positive long, negative short (one-way mode)
