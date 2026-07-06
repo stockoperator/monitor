@@ -46,6 +46,7 @@ class BinanceHttpClientBase(BaseHttpClient):
         async with self.session.request(method=method.value, url=url, params=params, headers=headers) as response:
             r = await response.read()
             data = orjson.loads(r)
+            await asyncio.sleep(0)
 
             return HttpResponse(
                 data=data,
@@ -93,8 +94,7 @@ class BinanceBaseKlineService(BaseKlineService, ABC):
         open_time = int(k["t"])
         close_price = float(k["c"])
         notional = float(k["q"])
-        taker_buy = float(k["Q"])
-        delta_notional = 2.0 * taker_buy - notional
+        delta_notional = 2.0 * float(k["Q"]) - notional
 
         container = self[symbol]
 
@@ -123,8 +123,8 @@ class BinanceBaseKlineService(BaseKlineService, ABC):
         prices = np.array([bar[4] for bar in bars], dtype=np.float64)
         notionals = np.array([bar[7] for bar in bars], dtype=np.float64)
         buy_notionals = np.array([bar[10] for bar in bars], dtype=np.float64)
-        delta_notional = 2.0 * buy_notionals - notionals
-        return ts, prices, notionals, delta_notional
+        delta_notionals = 2.0 * buy_notionals - notionals
+        return ts, prices, notionals, delta_notionals
 
     async def fill_symbol_frame(self, symbol: str, timeframe: str, closed_timeframe: str = "") -> None:
         kline_container = self[symbol]
@@ -142,49 +142,49 @@ class BinanceBaseKlineService(BaseKlineService, ABC):
             if not bars:
                 return
 
-            ts_new, prices_new, notionals_new, delta_notional_new = self.bars_to_arrays(bars)
+            ts_new, prices_new, notionals_new, delta_notionals_new = self.bars_to_arrays(bars)
 
-            t_existing, p_existing, n_existing, d_existing = klines.ordered()
+            t_existing, p_existing, n_existing, dn_existing = klines.ordered()
 
             if closed_timeframe:
                 klines_closed: Klines = getattr(kline_container, f"klines_{closed_timeframe}")
 
-                t_closed, _, n_closed, d_closed = klines_closed.ordered()
+                t_closed, _, n_closed, dn_closed = klines_closed.ordered()
                 current_mask = t_closed >= t_existing[-1]
                 klines.closed_notional = np.sum(n_closed[current_mask][:-1])
-                klines.closed_delta_notional = np.sum(d_closed[current_mask][:-1])
+                klines.closed_delta_notional = np.sum(dn_closed[current_mask][:-1])
 
                 if len(klines) > 1:
                     # First WS bar is partial (WS connected mid-period); rebuild it from the lower timeframe.
                     first_mask = (t_closed >= t_existing[0]) & (t_closed < t_existing[1])
                     n_existing[0] = np.sum(n_closed[first_mask])
-                    d_existing[0] = np.sum(d_closed[first_mask])
+                    dn_existing[0] = np.sum(dn_closed[first_mask])
 
             ts = np.concatenate((ts_new, t_existing))[-size:]
             prices = np.concatenate((prices_new, p_existing))[-size:]
             notionals = np.concatenate((notionals_new, n_existing))[-size:]
-            delta_notional = np.concatenate((delta_notional_new, d_existing))[-size:]
+            delta_notionals = np.concatenate((delta_notionals_new, dn_existing))[-size:]
 
             fill_len = len(ts)
             klines.timestamps[:fill_len] = ts
-            klines.prices[:fill_len] = prices
+            klines.close_prices[:fill_len] = prices
             klines.notionals[:fill_len] = notionals
-            klines.delta_notionals[:fill_len] = delta_notional
+            klines.delta_notionals[:fill_len] = delta_notionals
 
             klines.idx = fill_len - 1
             klines.wrapped = False
 
     async def fill_symbol(self, symbol: str) -> None:
-        closed_timeframe = ""
-        for timeframe in ["1m", "1h", "1d"]:
-            await self.fill_symbol_frame(symbol, timeframe, closed_timeframe)
-            closed_timeframe = timeframe
+        async with self.cpu_sem:
+            closed_timeframe = ""
+            for timeframe in ["1m", "1h", "1d"]:
+                await self.fill_symbol_frame(symbol, timeframe, closed_timeframe)
+                closed_timeframe = timeframe
 
     async def fill(self, symbols: set[str]) -> None:
         try:
             self.logger.info(f"klines download started")
-            tasks = [self.fill_symbol(symbol) for symbol in symbols]
-            await asyncio.gather(*tasks)
+            await asyncio.gather(*(self.fill_symbol(symbol) for symbol in symbols))
             self.logger.info(f"klines download finished")
         except Exception:
             self.logger.error(traceback_error_str())

@@ -26,12 +26,14 @@ class BaseConnector(ABC):
         secret_key: str = "",
         passphrase: str = "",
         logger: logging.Logger = null_logger(),
+        cpu_sem: asyncio.Semaphore,
     ) -> None:
         self.api_key = api_key if api_key else os.getenv(f"{self.name.value.upper()}_API_KEY", "")
         self.secret_key = secret_key if secret_key else os.getenv(f"{self.name.value.upper()}_SECRET_KEY", "")
         self.passphrase = passphrase if passphrase else os.getenv(f"{self.name.value.upper()}_PASSPHRASE", "")
 
         self.logger = logger.getChild(self.__class__.__name__)
+        self.cpu_sem = cpu_sem
 
         http_client = self.http_client_type(
             session=session,
@@ -59,6 +61,7 @@ class BaseConnector(ABC):
             http_client=self.public_http_client,
             instrument_manager=self.instrument_manager,
             logger=self.logger.getChild("klines"),
+            cpu_sem=cpu_sem,
         )
 
         if self.funding_service_type:

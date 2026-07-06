@@ -1,7 +1,7 @@
 import asyncio
 import time
-import numpy as np
 from typing import Type
+import numpy as np
 
 from connector.connector import BaseConnector
 from connector.http_client import make_session
@@ -9,6 +9,7 @@ from connector.async_logger import make_async_logger
 from connector.notification import Notification
 from connector.utils import traceback_error_str
 from connector.binance.binance_perp import BinancePerp
+from connector.binance.binance_spot import BinanceSpot
 
 
 class Monitor:
@@ -16,6 +17,9 @@ class Monitor:
         self.logger = make_async_logger("m")
         self.connectors: dict[Type[BaseConnector], BaseConnector] = {}
         self.connector_type_list = connector_type_list
+        self.z_level: float = 10
+        self.perc_level: float = 0.01
+        self.s_perc_level: float = 0.002
 
     async def loop_lag_monitor(self, period: float = 0.05, threshold_ms: float = 10):
         while True:
@@ -33,26 +37,40 @@ class Monitor:
     async def loop_check_signals(self) -> None:
         try:
             informed: dict[str, int] = {}
+            window = 1440
             while True:
                 await asyncio.sleep(5)
-                for con_type, connector in self.connectors.items():
-                    for instrument in connector.instrument_manager.values():
-                        symbol = instrument.exchange_symbol
-                        public_trades = connector.kline_service[symbol].klines_1m
-                        volumes = public_trades.notionals
-                        idx = public_trades.idx
-                        idx1 = idx + 1
-                        size = len(public_trades)
-                        t = public_trades.timestamps[idx]
-                        if t > informed.get(symbol, 0) and size == public_trades.size:
-                            v = np.concatenate([volumes[:idx], volumes[idx1:size]])
-                            vc = volumes[idx]
-                            k = vc / np.max(v)
-                            perc = (public_trades.prices[idx] / public_trades.prices[idx - 1] - 1) * 100.0
-                            if k > 2.0 and perc > 0.0 and self.connectors[BinancePerp].instrument_manager.get(instrument.unified_symbol):
-                                informed[symbol] = t
-                                tag = "green_circle" if perc > 0 else "red_circle"
-                                await self.notification.send(f"{con_type.__name__} {symbol} volume_k: {k:.1f}, vol: {vc:0.1f}, perc: {perc:.1f}", tags=tag)
+                for symbol, container in self.connectors[BinancePerp].kline_service.containers.items():
+                    if container.klines_1m.wrapped:
+                        await asyncio.sleep(0)
+                        ts, p, n, _ = container.klines_1m.ordered()
+                        nc = n[:-1][-window:]  # закрытые бары
+
+                        med = np.median(nc)
+                        sigma = 1.4826 * np.median(np.abs(nc - med))
+                        z = round((n[-1] - med) / sigma, 1)
+                        perc = round(p[-1] / p[-2] - 1, 3)
+                        click_url = f"https://www.coinglass.com/tv/Binance_{symbol}"
+
+                        if ts[-1] > informed.get(symbol, 0) and z > self.z_level and perc > self.perc_level:
+                            informed[symbol] = ts[-1]
+                            tag = "green_circle" if perc > 0 else "red_circle"
+                            await self.notification.send(f"{symbol} z: {z:.1f}, perc: {perc*100:.1f}%, price: {p[-1]}", tags=tag, click_url=click_url)
+
+                        if ts[-1] - informed.get(symbol, 0) > 1000 * 60 * 60 and symbol in self.connectors[BinanceSpot].kline_service.containers:
+                            try:
+                                sts, sp, _, _ = self.connectors[BinanceSpot].kline_service[symbol].klines_1m.ordered()
+                                diff = sp[-1] / p[-1] - 1
+                                s_perc = round(sp[-1] / sp[-2] - 1, 3)
+
+                                if ts[-1] == sts[-1] and diff > 0.01 and s_perc > self.s_perc_level:
+                                    await self.notification.send(
+                                        f"{symbol} diff: {diff*100:.1f}%, s_perc: {s_perc*100:.1f}, price: {p[-1]}, time: {ts[-1] - informed.get(symbol, 0)}",
+                                        click_url=click_url,
+                                    )
+                                    informed[symbol] = ts[-1]
+                            except:
+                                self.logger.error(f"symbol: {symbol}, sp: {sp}")
         except Exception:
             self.logger.error(traceback_error_str())
             raise
@@ -61,17 +79,19 @@ class Monitor:
         try:
             async with make_session() as session:
                 self.notification = Notification(session)
+                cpu_sem = asyncio.Semaphore(8)
 
                 for connector_type in self.connector_type_list:
                     connector = connector_type(
                         session=session,
                         logger=self.logger,
+                        cpu_sem=cpu_sem,
                     )
                     self.connectors[connector_type] = connector
 
                 async with asyncio.TaskGroup() as tg:
                     tg.create_task(self.loop_lag_monitor())
-                    # tg.create_task(self.loop_check_signals())
+                    tg.create_task(self.loop_check_signals())
 
                     for connector in self.connectors.values():
                         tg.create_task(connector.run())

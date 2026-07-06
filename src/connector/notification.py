@@ -17,6 +17,7 @@ class Notification:
         title: str = "",
         priority: str = "",
         tags: str = "",
+        click_url: str = "",
     ) -> None:
         headers: dict[str, str] = {}
         if title:
@@ -25,9 +26,8 @@ class Notification:
             headers["Priority"] = priority
         if tags:
             headers["Tags"] = tags
+        if click_url:
+            headers["Click"] = click_url
 
-        if headers:
-            resp = await self.session.post(self.url, data=message.encode("utf-8"), headers=headers)
-        else:
-            resp = await self.session.post(self.url, data=message.encode("utf-8"))
-        resp.raise_for_status()
+        async with self.session.post(self.url, data=message.encode("utf-8"), headers=headers) as resp:
+            resp.raise_for_status()

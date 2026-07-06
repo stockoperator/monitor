@@ -46,16 +46,17 @@ class BinancePerpAccountService(BaseAccountService):
 
     # --- listen key functions --------------------------------------------
 
-    async def get_listen_key(self, http_method: HTTPMethod) -> str:
+    async def get_listen_key(self, http_method: HTTPMethod) -> tuple[str, str]:
         response = await self.http_client.request(method=http_method, url=base_perp_url + perp_listen_key_url, is_auth_required=True)
-        return response.data.get("listenKey", "")
+        listenKey = response.data.get("listenKey", "")
+        return listenKey, response.data
 
     async def check_listen_key(self) -> None:
-        listen_key = await self.get_listen_key(HTTPMethod.PUT)
+        listen_key, _ = await self.get_listen_key(HTTPMethod.PUT)
         if not listen_key or self.listen_key != listen_key:
-            listen_key = await self.get_listen_key(HTTPMethod.POST)
+            listen_key, data = await self.get_listen_key(HTTPMethod.POST)
         if not listen_key:
-            raise BinanceApiError("check_listen_key: empty listenKey from POST")
+            raise BinanceApiError(f"check_listen_key: empty listenKey from POST. Data: {data}")
 
         if listen_key != self.listen_key:
             self.websocket_transport.ws_url = f"{ws_perp_private_url}/{listen_key}"

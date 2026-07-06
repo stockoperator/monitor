@@ -1,6 +1,8 @@
+import asyncio
 from logging import Logger
 from aiohttp import ClientSession
 import numpy as np
+from datetime import datetime, timezone
 from abc import abstractmethod
 
 from connector.async_logger import null_logger
@@ -16,7 +18,7 @@ class Klines:
         "wrapped",
         "period_ms",
         "timestamps",
-        "prices",
+        "close_prices",
         "notionals",
         "delta_notionals",
         "closed_notional",
@@ -30,7 +32,7 @@ class Klines:
         self.wrapped: bool = False
         self.period_ms = period_sec * 1000
         self.timestamps = np.zeros(size, dtype=np.int64)
-        self.prices = np.zeros(size, dtype=np.float64)
+        self.close_prices = np.zeros(size, dtype=np.float64)
         self.notionals = np.zeros(size, dtype=np.float64)
         self.delta_notionals = np.zeros(size, dtype=np.float64)
         self.closed_notional: float = 0
@@ -40,7 +42,7 @@ class Klines:
     def __len__(self) -> int:
         return self.size if self.wrapped else self.idx + 1
 
-    def set(self, timestamp: int, close: float, notional: float, delta_notional: float) -> None:
+    def set(self, timestamp: int, close_price: float, notional: float, delta_notional: float) -> None:
         m1 = 60_000
         open_time_1m = (timestamp // m1) * m1
 
@@ -62,19 +64,37 @@ class Klines:
         elif open_time < self.timestamps[self.idx]:
             return
 
-        self.prices[self.idx] = close
+        self.close_prices[self.idx] = close_price
         self.notionals[self.idx] = notional + self.closed_notional
         self.delta_notionals[self.idx] = delta_notional + self.closed_delta_notional
 
-    def ordered(self) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        end = len(self)
+    def ordered(
+        self,
+        from_date_utc: str | None = None,
+        to_date_utc: str | None = None,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        size = len(self)
         split_idx = self.idx + 1
-        ts = np.concatenate((self.timestamps[split_idx:end], self.timestamps[:split_idx]))
-        p = np.concatenate((self.prices[split_idx:end], self.prices[:split_idx]))
-        v = np.concatenate((self.notionals[split_idx:end], self.notionals[:split_idx]))
-        d = np.concatenate((self.delta_notionals[split_idx:end], self.delta_notionals[:split_idx]))
+        ts = np.concatenate((self.timestamps[split_idx:size], self.timestamps[:split_idx]))
+        p = np.concatenate((self.close_prices[split_idx:size], self.close_prices[:split_idx]))
+        n = np.concatenate((self.notionals[split_idx:size], self.notionals[:split_idx]))
+        dn = np.concatenate((self.delta_notionals[split_idx:size], self.delta_notionals[:split_idx]))
 
-        return ts, p, v, d
+        if from_date_utc or to_date_utc:
+            if from_date_utc:
+                left_ms = int(datetime.fromisoformat(from_date_utc).replace(tzinfo=timezone.utc).timestamp() * 1000)
+                i = np.searchsorted(ts, left_ms, side="left")
+            else:
+                i = 0
+            if to_date_utc:
+                right_ms = int(datetime.fromisoformat(to_date_utc).replace(tzinfo=timezone.utc).timestamp() * 1000)
+                j = np.searchsorted(ts, right_ms, side="right")
+            else:
+                j = size
+
+            ts, p, n, dn = ts[i:j], p[i:j], n[i:j], dn[i:j]
+
+        return ts, p, n, dn
 
 
 class KlinesContainer:
@@ -85,10 +105,10 @@ class KlinesContainer:
         self.klines_1h = Klines(size=size_1h, period_sec=60 * 60)
         self.klines_1d = Klines(size=size_1d, period_sec=60 * 60 * 24)
 
-    def set(self, timestamp: int, close: float, notional: float, delta_notional: float) -> None:
+    def set(self, timestamp: int, close_price: float, notional: float, delta_notional: float) -> None:
         for slot in self.__slots__:
             klines: Klines = getattr(self, slot)
-            klines.set(timestamp, close, notional, delta_notional)
+            klines.set(timestamp, close_price, notional, delta_notional)
 
 
 class BaseKlineService(BaseDataService):
@@ -99,6 +119,7 @@ class BaseKlineService(BaseDataService):
         http_client: BaseRateLimiterHttpClient,
         instrument_manager: BaseInstrumentManager,
         logger: Logger = null_logger(),
+        cpu_sem: asyncio.Semaphore,
     ) -> None:
         super().__init__(
             session=session,
@@ -107,6 +128,7 @@ class BaseKlineService(BaseDataService):
             logger=logger,
         )
         self.containers: dict[str, KlinesContainer] = {}
+        self.cpu_sem = cpu_sem
 
     @property
     @abstractmethod
